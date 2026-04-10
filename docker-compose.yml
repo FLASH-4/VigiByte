@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # VigiByte Application
+  vigibyte:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vigibyte-app
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+    volumes:
+      - ./public:/app/public
+      - ./src:/app/src
+    restart: unless-stopped
+    networks:
+      - vigibyte-network
+    depends_on:
+      - vigibyte-db
+
+  # PostgreSQL Database (Optional local backup)
+  vigibyte-db:
+    image: postgres:15-alpine
+    container_name: vigibyte-db
+    environment:
+      - POSTGRES_USER=vigibyte_user
+      - POSTGRES_PASSWORD=vigibyte_secure_password_123
+      - POSTGRES_DB=vigibyte_db
+    volumes:
+      - vigibyte-db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - vigibyte-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vigibyte_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  vigibyte-db-data:
+    driver: local
+
+networks:
+  vigibyte-network:
+    driver: bridge
