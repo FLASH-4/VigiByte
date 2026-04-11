@@ -73,8 +73,8 @@ export async function detectAllCriminals(videoElement, criminals) {
     // STEP 1: Detect ALL faces at once (parallel GPU processing)
     const detections = await faceapi
       .detectAllFaces(videoElement, new faceapi.TinyFaceDetectorOptions({
-        inputSize: 160, // ✅ Smaller = MUCH faster (160 vs 416)
-        scoreThreshold: 0.4 // ✅ Lower threshold to catch more faces
+        inputSize: 320, // ✅ Smaller = MUCH faster (160 vs 416)
+        scoreThreshold: 0.1 // ✅ Lower threshold to catch more faces
       }))
       .withFaceLandmarks()
       .withFaceDescriptors()

@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { AreaChart, Area, BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { Shield, Camera, Users, AlertCircle, Activity, Plus, X, Server, Bell, Database, Globe, MapPin, Cpu, Fingerprint, Download, Eye, Link, LogOut } from 'lucide-react'
-import * as faceapi from '@vladmandic/face-api'
+import { Shield, AlertCircle, Activity, X, Server, Bell, Database, Globe, MapPin, Cpu, Download, Eye, LogOut } from 'lucide-react'
 import { loadModels, getAllFaceDescriptors, matchFace } from '../lib/faceRecognition'
 import CameraFeed from './CameraFeed'
 import AlertPanel from './AlertPanel'
 import CriminalDB from './CriminalDB'
-import { getStream, releaseStream } from '../lib/streamManager'
+import { getStream } from '../lib/streamManager'
 import { supabase } from '../lib/supabase'
 
 export default function Dashboard({ user, onLogout }) {
@@ -16,6 +15,11 @@ export default function Dashboard({ user, onLogout }) {
   })
   
   const [selectedCamera, setSelectedCamera] = useState(null)
+
+  useEffect(() => { 
+    document.body.style.overflow = selectedCamera ? 'hidden' : '';
+  }, [selectedCamera])
+  
   const [showAddModal, setShowAddModal] = useState(false)
   const [liveStats, setLiveStats] = useState([])
   const [globalAlerts, setGlobalAlerts] = useState([])
@@ -144,7 +148,7 @@ export default function Dashboard({ user, onLogout }) {
         </div>
         <div className="lg:col-span-8 bg-slate-900/30 border border-white/5 rounded-3xl overflow-hidden flex flex-col">
             <div className="flex bg-black/20 p-2 gap-2 border-b border-white/5"><TabBtn active={activeTab === 'alerts'} label="THREAT HISTORY" onClick={() => setActiveTab('alerts')} icon={<Bell size={14}/>} />{user?.role !== 'viewer' && <TabBtn active={activeTab === 'database'} label="DATABASE" onClick={() => setActiveTab('database')} icon={<Database size={14}/>} />}</div>
-            <div className="p-8 h-[420px] overflow-y-auto custom-scrollbar">
+            <div className="p-8 h-[530px] overflow-y-auto custom-scrollbar">
                 {activeTab === 'alerts' ? (
                   <AlertPanel alerts={globalAlerts} onViewImage={setViewingImageUrl} />
                 ) : user?.role !== 'viewer' ? (
@@ -281,18 +285,12 @@ function CriminalCardCompact({ criminal, index, onViewImage, onDownload }) {
                 onClick={() => onViewImage(imageUrl)}
               />
               {/* Hover actions */}
-              <div className="absolute inset-0 bg-black/70 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+              <div className="absolute inset-0 bg-black/70 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity h-16 flex items-center justify-center gap-1">
                 <button
                   onClick={() => onViewImage(imageUrl)}
-                  className="bg-blue-600 hover:bg-blue-500 p-1.5 rounded"
+                  className="bg-white-600 p-1.5 rounded"
                   title="View">
                   <Eye size={12} className="text-white" />
-                </button>
-                <button
-                  onClick={() => onDownload(imageUrl, `${criminal.name}-photo.jpg`)}
-                  className="bg-green-600 hover:bg-green-500 p-1.5 rounded"
-                  title="Download">
-                  <Download size={12} className="text-white" />
                 </button>
               </div>
             </>

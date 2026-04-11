@@ -18,14 +18,13 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
 
   // 1. FEATURE: DOWNLOAD CURRENT FORM AS CSV
   const downloadFormAsCSV = () => {
-    if (!form.name || !form.crime) return alert("Name aur Crime bharna zaroori hai!")
     const data = [{ 
       Name: form.name, 
       Age: form.age, 
       Crime: form.crime, 
       Date: form.crime_date, 
       Danger_Level: form.danger_level,
-      Photo_URL: preview ? 'Local File - Upload करने पर URL save होगा' : '',
+      Photo_URL: preview ? 'URL will be saved on Local File - Upload' : '',
       Face_Descriptor: ''
     }]
     const csv = Papa.unparse(data)
@@ -167,13 +166,13 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
 
   // --- CORE SYSTEM HANDLERS ---
   async function handleSave() {
-    if (!photoFile) { setMsg('Photo required hai — baaki sab optional hai'); return }
-    setSaving(true); setMsg('AI scanning chehra...')
+    if (!photoFile) { setMsg('Photo is Mandatory'); return }
+    setSaving(true); setMsg('AI scanning the Face')
     try {
       await loadModels()
       const img = new Image(); img.src = preview; await new Promise(r => img.onload = r)
       const descriptor = await getFaceDescriptor(img)
-      if (!descriptor) { setMsg('Chehra nahi mila.'); setSaving(false); return }
+      if (!descriptor) { setMsg('Face Not Found.'); setSaving(false); return }
 
       let photo_url = null
       if (supabase && supabase.storage) {
@@ -294,7 +293,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
             </div>
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
                 <button onClick={() => downloadRecordAsCSV(c)} className="p-2 text-slate-400 hover:text-emerald-500 bg-white/5 rounded-lg"><FileJson size={16} /></button>
-                {userRole !== 'viewer' && <button onClick={() => setDeleteTarget(c)} className="p-2 text-slate-400 hover:text-red-500 bg-white/5 rounded-lg"><Trash2 size={16} /></button>}
+                {userRole === 'admin' && <button onClick={() => setDeleteTarget(c)} className="p-2 text-slate-400 hover:text-red-500 bg-white/5 rounded-lg"><Trash2 size={16} /></button>}
             </div>
             <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${c.danger_level === 'HIGH' ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'}`}>{c.danger_level}</span>
           </div>
