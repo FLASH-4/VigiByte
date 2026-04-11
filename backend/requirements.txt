@@ -1,21 +1,18 @@
 # --- VIGIBYTE AI ENGINE DEPENDENCIES ---
-# Purpose: Lists all Python libraries required to run the facial recognition backend.
-# These versions are pinned to ensure stability across different deployment environments.
+# Purpose: Core libraries required for the Python-based CNN face detection backend.
+# Versions are pinned to ensure deterministic builds in Docker/Cloud environments.
 
-# Main web framework for building high-performance APIs
-fastapi==0.115.0
+# --- WEB FRAMEWORK & SERVER ---
+fastapi==0.115.0             # Modern, high-performance web framework for APIs
+uvicorn[standard]==0.30.6    # ASGI server to run the FastAPI application
+python-multipart==0.0.9      # Handles form-data and file uploads (Base64/Images)
 
-# ASGI server implementation, used to run the FastAPI application
-uvicorn[standard]==0.30.6
+# --- IMAGE PROCESSING & NUMERICS ---
+Pillow==10.4.0               # Comprehensive image library for format conversion
+numpy==1.26.4                # Optimized numerical processing for facial vectors
 
-# The core AI library for face detection and 128-d encoding extraction (Built on dlib)
-face-recognition==1.3.0
-
-# Python Imaging Library (PIL fork) used for image opening and manipulation
-Pillow==10.4.0
-
-# Fundamental package for scientific computing; handles facial descriptors as numerical arrays
-numpy==1.26.4
-
-# Required by FastAPI to handle form data and file uploads (Base64/Multipart)
-python-multipart==0.0.9
+# --- AI & BIOMETRIC RECOGNITION ---
+# Pre-compiled dlib for faster deployment without complex build-tools
+dlib==19.24.2                # C++ toolkit for ML; engine behind face recognition
+face-recognition==1.3.0      # High-level library for dlib-based facial identification
+face-recognition-models==0.3.0 # Pre-trained models (CNN, Landmarks, Encodings)
