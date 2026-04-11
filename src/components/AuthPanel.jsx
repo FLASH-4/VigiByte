@@ -222,7 +222,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             <li>✅ Role-based access control (RBAC)</li>
             <li>✅ Activity logging & audit trail</li>
             <li>✅ Session timeout protection</li>
-            <li>✅ Password hashing with bcrypt</li>
+            <li>✅ Password hashing with PBKDF2 (Web Crypto API)</li>
           </ul>
         </div>
       </div>

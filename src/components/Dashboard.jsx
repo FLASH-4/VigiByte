@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { AreaChart, Area, BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { Shield, AlertCircle, Activity, X, Server, Bell, Database, Globe, MapPin, Cpu, Download, Eye, LogOut } from 'lucide-react'
-import { loadModels, getAllFaceDescriptors, matchFace } from '../lib/faceRecognition'
+import { loadModels, detectAllCriminals, checkBackend } from '../lib/faceRecognition'
 import CameraFeed from './CameraFeed'
 import AlertPanel from './AlertPanel'
 import CriminalDB from './CriminalDB'
@@ -36,12 +36,19 @@ export default function Dashboard({ user, onLogout }) {
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const { data, error } = await supabase.from('criminals').select('count', { count: 'exact', head: true })
-        if (error) throw error
-        setLinkStatus('ENCRYPTED')
+        // 1. Check Supabase
+        const { error: dbError } = await supabase.from('criminals').select('count', { count: 'exact', head: true });
+        
+        // 2. Check Python Backend (AI Engine)
+        const isAiOnline = await checkBackend(); 
+
+        if (dbError || !isAiOnline) {
+          setLinkStatus('DISCONNECTED');
+        } else {
+          setLinkStatus('ENCRYPTED'); // Dono sahi hain toh hi Encrypted aayega
+        }
       } catch (err) {
-        console.error('Connection check failed:', err)
-        setLinkStatus('DISCONNECTED')
+        setLinkStatus('DISCONNECTED');
       }
     }
     
@@ -484,15 +491,19 @@ function GridNode({ camera, criminals, onUpdate }) {
           if (videoRef.current) videoRef.current.srcObject = stream
 
           scanInterval = setInterval(async () => {
-            if (!videoRef.current || criminalsRef.current.length === 0) return
+            if (!videoRef.current || videoRef.current.readyState < 2 || criminalsRef.current.length === 0) return;
             try {
-              const detections = await getAllFaceDescriptors(videoRef.current)
-              const match = detections.length > 0
-                ? matchFace(detections[0].descriptor, criminalsRef.current)
-                : null
-              onUpdate(match, camera, detections.length, null, match?.confidence)
-            } catch (e) {}
-          }, 6000)
+              const matches = await detectAllCriminals(videoRef.current, criminalsRef.current)
+              if (matches && matches.length > 0) {
+                const bestMatch = matches[0]
+                onUpdate(bestMatch, camera, matches.length, null, bestMatch.confidence)
+              } else {
+                // Agar koi nahi mila toh status reset karo
+                onUpdate(null, camera, 0, null, 0)
+              }
+            } catch (e) {
+            }
+          }, 12000)
         })
         .catch(err => console.error('GridNode stream error:', err))
     }

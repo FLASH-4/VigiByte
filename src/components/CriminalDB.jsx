@@ -1,7 +1,30 @@
 import { useState } from 'react'
-import { loadModels, getFaceDescriptor } from '../lib/faceRecognition'
+import { loadModels, getFaceDescriptor, getFaceDescriptorFromBackend, checkBackend } from '../lib/faceRecognition'
 import { Download, FileStack, RefreshCw, Plus, Trash2, ShieldAlert, X, UploadCloud, FileJson, Save } from 'lucide-react'
 import Papa from 'papaparse'
+
+const resizeImage = (file, maxWidth = 640) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale = maxWidth / img.width;
+        canvas.width = maxWidth;
+        canvas.height = img.height * scale;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        // Quality 0.7 rakho (70% quality, file size bohot kam ho jayegi)
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+    };
+  });
+};
 
 export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 'viewer' }) {
   const [adding, setAdding] = useState(false)
@@ -167,12 +190,31 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
   // --- CORE SYSTEM HANDLERS ---
   async function handleSave() {
     if (!photoFile) { setMsg('Photo is Mandatory'); return }
-    setSaving(true); setMsg('AI scanning the Face')
-    try {
-      await loadModels()
-      const img = new Image(); img.src = preview; await new Promise(r => img.onload = r)
-      const descriptor = await getFaceDescriptor(img)
-      if (!descriptor) { setMsg('Face Not Found.'); setSaving(false); return }
+      setSaving(true);
+      setMsg('⚡ Optimizing Image & Scanning...');
+
+      try {
+        // 🟢 PERMANENT FIX: Send resized base64, not the original heavy file
+        const optimizedBase64 = await resizeImage(photoFile);
+
+        const backendAvailable = await checkBackend();
+        if (backendAvailable) {
+          // Ab ye bohot fast jayega aur server crash nahi hoga
+          descriptorArray = await getFaceDescriptorFromBackend(optimizedBase64);
+          setMsg('✅ AI Descriptor Extracted!');
+        } else {
+            // Browser fallback (Purana logic - tabhi chalega jab backend off ho)
+            setMsg('⚠️ Backend offline — using browser model...');
+            await loadModels();
+            const img = new Image(); 
+            img.src = preview; // Preview sirf browser display ke liye use ho raha hai
+            await new Promise(r => img.onload = r);
+            const descriptor = await getFaceDescriptor(img);
+            if (!descriptor) throw new Error("Face not found");
+            descriptorArray = Array.from(descriptor);
+          }
+
+      if (!descriptorArray) { setMsg('Face Not Found.'); setSaving(false); return }
 
       let photo_url = null
       if (supabase && supabase.storage) {
@@ -187,7 +229,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
         crime: form.crime || 'Unclassified',
         crime_date: form.crime_date || null,
         danger_level: form.danger_level || 'MEDIUM',
-        face_descriptor: Array.from(descriptor),
+        face_descriptor: descriptorArray,
         photo_url,
       })
       if (error) throw error
