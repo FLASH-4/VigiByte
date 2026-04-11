@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react'
 import Dashboard from './components/Dashboard'
 import AuthPanel from './components/AuthPanel'
-import { generateToken, verifyToken, hashPassword, loginLimiter } from './services/browserAuth.js'
+import { 
+  generateToken, 
+  verifyToken, 
+  hashPassword, 
+  comparePasswords,  // ✅ FIXED: Added this import
+  loginLimiter,
+  auditLogger 
+} from './services/browserAuth.js'
 
 export default function App() {
   const [user, setUser] = useState(null)
@@ -15,20 +22,26 @@ export default function App() {
 
   // Check if already logged in (on page load)
   useEffect(() => {
-    const token = localStorage.getItem('vigibyte_token')
-    const userData = localStorage.getItem('vigibyte_user')
-    
-    if (token && userData) {
-      const verified = verifyToken(token)
-      if (verified) {
-        setUser(JSON.parse(userData))
-      } else {
-        // Token expired, clear storage
-        localStorage.removeItem('vigibyte_token')
-        localStorage.removeItem('vigibyte_user')
+    const checkAuth = async () => {
+      const token = localStorage.getItem('vigibyte_token')
+      const userData = localStorage.getItem('vigibyte_user')
+      
+      if (token && userData) {
+        const verified = await verifyToken(token)  // ✅ Now async
+        if (verified) {
+          setUser(JSON.parse(userData))
+          // Log successful session restoration
+          await auditLogger.log('session_restored', verified.id, verified.email)
+        } else {
+          // Token expired, clear storage
+          localStorage.removeItem('vigibyte_token')
+          localStorage.removeItem('vigibyte_user')
+        }
       }
+      setLoading(false)
     }
-    setLoading(false)
+    
+    checkAuth()
   }, [])
 
   // Handle Login
@@ -40,8 +53,9 @@ export default function App() {
       const { email, password, isRegister } = credentials
 
       // Rate limiting check
+      const remainingAttempts = loginLimiter.getRemainingAttempts(`login_${email}`)
       if (!loginLimiter.check(`login_${email}`)) {
-        throw new Error('Too many login attempts. Try again later.')
+        throw new Error(`Too many login attempts. Try again in 15 minutes. (${remainingAttempts} attempts left)`)
       }
 
       if (isRegister) {
@@ -51,10 +65,15 @@ export default function App() {
           throw new Error('User already exists')
         }
 
+        // Validate password strength
+        if (password.length < 8) {
+          throw new Error('Password must be at least 8 characters long')
+        }
+
         // Use selected role from registration form
         const role = credentials.role || 'officer'
         
-        // Hash password
+        // Hash password with improved PBKDF2
         const hashedPassword = await hashPassword(password)
         
         const newUser = { 
@@ -70,7 +89,7 @@ export default function App() {
         localStorage.setItem('vigibyte_users', JSON.stringify(updatedUsers))
 
         // Auto-login after registration
-        const token = generateToken(newUser.id, newUser.email, newUser.role)
+        const token = await generateToken(newUser.id, newUser.email, newUser.role)
         localStorage.setItem('vigibyte_token', token)
         localStorage.setItem('vigibyte_user', JSON.stringify({
           id: newUser.id,
@@ -79,21 +98,30 @@ export default function App() {
         }))
         
         setUser({ id: newUser.id, email: newUser.email, role: newUser.role })
+        
+        // Log registration
+        await auditLogger.log('user_registered', newUser.id, newUser.email, { role })
+        
+        // Reset rate limiter on success
+        loginLimiter.reset(`login_${email}`)
+        
       } else {
         // Login existing user
         const foundUser = users.find(u => u.email === email)
         
         if (!foundUser) {
+          await auditLogger.log('login_failed', 'unknown', email, { reason: 'user_not_found' })
           throw new Error('Invalid email or password')
         }
 
-        // Compare passwords
+        // Compare passwords using improved method
         const passwordMatch = await comparePasswords(password, foundUser.passwordHash)
         if (!passwordMatch) {
+          await auditLogger.log('login_failed', foundUser.id, email, { reason: 'wrong_password' })
           throw new Error('Invalid email or password')
         }
 
-        const token = generateToken(foundUser.id, foundUser.email, foundUser.role)
+        const token = await generateToken(foundUser.id, foundUser.email, foundUser.role)
         localStorage.setItem('vigibyte_token', token)
         localStorage.setItem('vigibyte_user', JSON.stringify({
           id: foundUser.id,
@@ -102,16 +130,27 @@ export default function App() {
         }))
         
         setUser({ id: foundUser.id, email: foundUser.email, role: foundUser.role })
+        
+        // Log successful login
+        await auditLogger.log('login_success', foundUser.id, foundUser.email)
+        
+        // Reset rate limiter on success
+        loginLimiter.reset(`login_${email}`)
       }
     } catch (err) {
       setAuthError(err.message)
+      console.error('Authentication error:', err)
     } finally {
       setLoading(false)
     }
   }
 
   // Handle Logout
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (user) {
+      await auditLogger.log('logout', user.id, user.email)
+    }
+    
     localStorage.removeItem('vigibyte_token')
     localStorage.removeItem('vigibyte_user')
     setUser(null)
@@ -122,7 +161,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin">🔄</div>
+          <div className="animate-spin text-4xl mb-4">🔄</div>
           <p className="mt-4 text-slate-400">Loading VigiByte...</p>
         </div>
       </div>
@@ -134,17 +173,8 @@ export default function App() {
       {!user ? (
         <AuthPanel onLogin={handleLogin} error={authError} />
       ) : (
-        <>
-          <Dashboard user={user} onLogout={handleLogout} />
-        </>
+        <Dashboard user={user} onLogout={handleLogout} />
       )}
     </div>
   )
-}
-
-// Helper function (re-export from browserAuth)
-async function comparePasswords(password, hash) {
-  const { hashPassword } = await import('./services/browserAuth.js')
-  const newHash = await hashPassword(password)
-  return newHash === hash
 }
