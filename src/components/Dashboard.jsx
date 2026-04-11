@@ -8,99 +8,127 @@ import CriminalDB from './CriminalDB'
 import { getStream } from '../lib/streamManager'
 import { supabase } from '../lib/supabase'
 
+/**
+ * VIGIBYTE DASHBOARD
+ * Purpose: Central Command Center for managing surveillance nodes and real-time AI analytics.
+ * This component orchestrates the state for the entire application, including security alerts,
+ * database records, and system health monitoring.
+ */
 export default function Dashboard({ user, onLogout }) {
+  // --- STATE MANAGEMENT ---
+  
+  // Camera Nodes: Persisted in localStorage for consistent sessions
   const [cameras, setCameras] = useState(() => {
     const saved = localStorage.getItem('security_cameras')
     return saved ? JSON.parse(saved) : [{ id: 'cam-1', name: 'ENTRY_CAM_01', location: 'Main Entrance', coordinates: '28.61, 77.20', source: 'webcam', type: 'webcam' }]
   })
   
-  const [selectedCamera, setSelectedCamera] = useState(null)
+  const [selectedCamera, setSelectedCamera] = useState(null) // Currently focused camera in 'Inspector' mode
 
+  // Effect to prevent background scrolling when the Inspector Modal is active
   useEffect(() => { 
     document.body.style.overflow = selectedCamera ? 'hidden' : '';
   }, [selectedCamera])
   
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [liveStats, setLiveStats] = useState([])
-  const [globalAlerts, setGlobalAlerts] = useState([])
-  const [activeTab, setActiveTab] = useState('alerts')
-  const [criminals, setCriminals] = useState([])
+  const [showAddModal, setShowAddModal] = useState(false) // UI state for adding new cameras
+  const [liveStats, setLiveStats] = useState([])         // Data for Recharts analytics
+  const [globalAlerts, setGlobalAlerts] = useState([])   // Master list of all security breaches
+  const [activeTab, setActiveTab] = useState('alerts')   // UI navigation: Alerts vs Database
+  const [criminals, setCriminals] = useState([])         // Records from Supabase
   const [lastMatchOnNode, setLastMatchOnNode] = useState(null)
   const [localNodeStats, setLocalNodeStats] = useState({ totalDetections: 0, lastConf: 0 })
-  const [viewingImageUrl, setViewingImageUrl] = useState(null)
+  const [viewingImageUrl, setViewingImageUrl] = useState(null) // Full-screen image viewer state
   const [linkStatus, setLinkStatus] = useState('CONNECTING') // CONNECTING | ENCRYPTED | DISCONNECTED
-  // ✅ NEW: Track detected criminals from camera feed
-  const [detectedCriminals, setDetectedCriminals] = useState([])
+  const [detectedCriminals, setDetectedCriminals] = useState([]) // Live subjects in the current active feed
 
-  // Check Supabase connection health every 5 seconds
+  /**
+   * SYSTEM HEALTH CHECK
+   * Periodically verifies the connection between the frontend, Supabase, and the Python AI Backend.
+   */
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        // 1. Check Supabase
+        // Step 1: Verify Supabase database accessibility
         const { error: dbError } = await supabase.from('criminals').select('count', { count: 'exact', head: true });
         
-        // 2. Check Python Backend (AI Engine)
+        // Step 2: Ping the Python FastAPI Backend (The AI Engine)
         const isAiOnline = await checkBackend(); 
 
+        // Update Link Status: Both must be online to show 'ENCRYPTED'
         if (dbError || !isAiOnline) {
           setLinkStatus('DISCONNECTED');
         } else {
-          setLinkStatus('ENCRYPTED'); // Dono sahi hain toh hi Encrypted aayega
+          setLinkStatus('ENCRYPTED'); 
         }
       } catch (err) {
         setLinkStatus('DISCONNECTED');
       }
     }
     
-    checkConnection() // Check immediately
-    const interval = setInterval(checkConnection, 5000) // Check every 5 seconds
-    return () => clearInterval(interval)
+    checkConnection(); // Immediate check on mount
+    const interval = setInterval(checkConnection, 5000); // Pulse every 5 seconds
+    return () => clearInterval(interval);
   }, [])
 
+  // Initial Load: Pre-load AI models and sync criminal registry
   useEffect(() => { 
     loadModels(); 
     loadCriminals(); 
     localStorage.setItem('security_cameras', JSON.stringify(cameras)) 
   }, [cameras])
 
+  // Fetches suspect records from the cloud database
   async function loadCriminals() { 
     const { data } = await supabase.from('criminals').select('*'); 
     setCriminals(data || []) 
   }
 
+  /**
+   * GLOBAL UPDATE HANDLER
+   * The central logic that processes detection events from any node in the network.
+   * Updates global alerts, charts, and node metrics simultaneously.
+   */
   const handleGlobalUpdate = useCallback((match, camera, personCount, logMsg, confidence = 0) => {
     if (match) {
       const imgUrl = match.image_url || match.photo_url;
       setLastMatchOnNode({ ...match, image_url: imgUrl, cameraName: camera.name, confidence });
       setLocalNodeStats(prev => ({ totalDetections: prev.totalDetections + 1, lastConf: confidence }));
 
+      // Alert Logic: Prevents notification spam by using a 10-second debounce per subject
       setGlobalAlerts(prev => {
         const index = prev.findIndex(a => a.id === match.id)
         const now = Date.now()
         const det = { timestamp: now, camera: camera.name, location: camera.location, coordinates: camera.coordinates, confidence: confidence || match.confidence || 0 }
+        
         if (index !== -1) {
           if (now - prev[index].detections[prev[index].detections.length - 1].timestamp < 10000) return prev
-          const updated = [...prev]; updated[index] = { ...updated[index], lastSeen: now, detections: [...updated[index].detections, det] }; return updated
+          const updated = [...prev]; 
+          updated[index] = { ...updated[index], lastSeen: now, detections: [...updated[index].detections, det] }; 
+          return updated;
         }
         return [{ ...match, image_url: imgUrl, lastSeen: now, detections: [det] }, ...prev]
       })
     }
+
+    // Charting Logic: Calculates 'Neural Load' based on scene complexity and identification status
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     setLiveStats(prev => {
-      let load = Math.floor(Math.random() * 10) + 35; 
-      if (personCount > 0) load += 15; 
-      if (match) load = 94;
+      let load = Math.floor(Math.random() * 10) + 35; // Base idle load
+      if (personCount > 0) load += 15;                 // Processing human traffic
+      if (match) load = 94;                           // High load during active identification
       const signal = confidence || (Math.floor(Math.random() * 8) + 5);
       const newData = [...prev, { time, load, signal }];
-      return newData.slice(-15)
+      return newData.slice(-15) // Keep only the latest 15 data points for clarity
     })
   }, [])
 
+  // Adds a new camera node to the surveillance grid
   const handleAddCamera = (data) => { 
     setCameras(prev => [...prev, { id: `cam-${Date.now()}`, ...data, status: 'ONLINE' }]); 
     setShowAddModal(false); 
   }
   
+  // Removes a camera node and performs UI cleanup
   const handleDeleteCamera = (id, e) => { 
     e.stopPropagation(); 
     setCameras(prev => prev.filter(c => c.id !== id)); 
@@ -109,8 +137,16 @@ export default function Dashboard({ user, onLogout }) {
 
   return (
     <div className="min-h-screen bg-[#080a10] text-slate-300 font-sans p-6 tracking-tight">
+      
+      {/* HEADER: Branding and User Session Info */}
       <header className="flex items-center justify-between mb-8 border-b border-white/5 pb-6">
-        <div className="flex items-center gap-4"><Shield className="text-blue-500" size={26} /><div><h1 className="text-lg font-bold text-white uppercase tracking-tight leading-none">VigiByte</h1><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">Network Command Center v6.0</p></div></div>
+        <div className="flex items-center gap-4">
+          <Shield className="text-blue-500" size={26} />
+          <div>
+            <h1 className="text-lg font-bold text-white uppercase tracking-tight leading-none">VigiByte</h1>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">Network Command Center v6.0</p>
+          </div>
+        </div>
         <div className="flex items-center gap-6">
           {user?.role === 'admin' && <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 border border-blue-400/20">+ Add New Node</button>}
           <div className="flex items-center gap-4 pl-6 border-l border-white/10">
@@ -126,6 +162,7 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       </header>
 
+      {/* KPI GRID: Real-time high-level metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         <KPICard label="Active Nodes" value={cameras.length} icon={<Server size={18}/>} color="blue" />
         <KPICard label="Identified Threats" value={globalAlerts.length} icon={<AlertCircle size={18}/>} color="red" />
@@ -133,8 +170,11 @@ export default function Dashboard({ user, onLogout }) {
         <KPICard label="Link Status" value={linkStatus} icon={<Globe size={18}/>} color={linkStatus === 'ENCRYPTED' ? 'green' : linkStatus === 'CONNECTING' ? 'slate' : 'red'} />
       </div>
 
+      {/* NODE GRID: Visual status of all surveillance nodes */}
       <section className="mb-10">
-        <h2 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-5 px-1 flex items-center gap-2"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div> Node Network Grid</h2>
+        <h2 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-5 px-1 flex items-center gap-2">
+          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div> Node Network Grid
+        </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-5">
           {cameras.map(cam => (
             <div key={cam.id} className="relative group">
@@ -148,13 +188,17 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       </section>
 
+      {/* ANALYTICS & REPOSITORY: Charts and Database management */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-4 space-y-6">
             <ChartContainer title="Processing Load" icon={<Cpu size={14}/>}><ResponsiveContainer width="100%" height={180}><BarChart data={liveStats}><Bar dataKey="load" radius={[4, 4, 0, 0]} barSize={20}>{liveStats.map((e, i) => <Cell key={i} fill={e.load > 85 ? '#FF4040' : '#00AAFF'} />)}</Bar><Tooltip cursor={{fill: 'rgba(255,255,255,0.1)'}} contentStyle={{background: '#1a1f2e', border: '2px solid #00AAFF', borderRadius: '12px', fontSize: '11px', color: '#00AAFF', fontWeight: 'bold'}} /><XAxis dataKey="time" tick={{fontSize: 8, stroke: '#ffffff', fill: '#ffffff'}} /></BarChart></ResponsiveContainer></ChartContainer>
             <ChartContainer title="Neural Match Signal" icon={<Activity size={14}/>}><ResponsiveContainer width="100%" height={180}><AreaChart data={liveStats}><defs><linearGradient id="p" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><Area type="monotone" dataKey="signal" stroke="#3b82f6" strokeWidth={2.5} fill="url(#p)" /><Tooltip contentStyle={{background: '#0a0d14', border: '1px solid #1e293b', borderRadius: '12px', fontSize: '10px'}} /></AreaChart></ResponsiveContainer></ChartContainer>
         </div>
         <div className="lg:col-span-8 bg-slate-900/30 border border-white/5 rounded-3xl overflow-hidden flex flex-col">
-            <div className="flex bg-black/20 p-2 gap-2 border-b border-white/5"><TabBtn active={activeTab === 'alerts'} label="THREAT HISTORY" onClick={() => setActiveTab('alerts')} icon={<Bell size={14}/>} />{user?.role !== 'viewer' && <TabBtn active={activeTab === 'database'} label="DATABASE" onClick={() => setActiveTab('database')} icon={<Database size={14}/>} />}</div>
+            <div className="flex bg-black/20 p-2 gap-2 border-b border-white/5">
+              <TabBtn active={activeTab === 'alerts'} label="THREAT HISTORY" onClick={() => setActiveTab('alerts')} icon={<Bell size={14}/>} />
+              {user?.role !== 'viewer' && <TabBtn active={activeTab === 'database'} label="DATABASE" onClick={() => setActiveTab('database')} icon={<Database size={14}/>} />}
+            </div>
             <div className="p-8 h-[530px] overflow-y-auto custom-scrollbar">
                 {activeTab === 'alerts' ? (
                   <AlertPanel alerts={globalAlerts} onViewImage={setViewingImageUrl} />
@@ -167,16 +211,18 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       </div>
 
-      {/* ✅ POPUP INSPECTOR - Camera feed on left, criminal cards on right */}
+      {/* INSPECTOR CORE MODAL: Deep-dive view for specific nodes */}
       {selectedCamera && (
         <div className="fixed inset-1 z-[100] flex justify-center p-6 backdrop-blur-md bg-black/70 transition-all duration-300">
           <div className="bg-[#0c101f] w-full max-w-7xl rounded-[2.5rem] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
-                <div className="flex flex-col"><h2 className="text-sm font-bold text-white uppercase tracking-tight leading-none">Inspector Core: {selectedCamera.name}</h2><div className="flex items-center gap-2 mt-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest"><MapPin size={10} className="text-blue-500" /> Site: {selectedCamera.location} | {selectedCamera.coordinates}</div></div>
+                <div className="flex flex-col">
+                  <h2 className="text-sm font-bold text-white uppercase tracking-tight leading-none">Inspector Core: {selectedCamera.name}</h2>
+                  <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest"><MapPin size={10} className="text-blue-500" /> Site: {selectedCamera.location} | {selectedCamera.coordinates}</div>
+                </div>
                 <button onClick={() => setSelectedCamera(null)} className="p-2.5 bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl transition-all border border-white/10"><X size={22}/></button>
             </div>
-            <div className="p-10 grid grid-cols-1 lg:grid-cols-3 gap-10 overflow-hidden"> {/* ✅ No scroll here */}
-                {/* ✅ Camera Feed - Left side (2 columns, no scroll) */}
+            <div className="p-10 grid grid-cols-1 lg:grid-cols-3 gap-10 overflow-hidden">
                 <div className="lg:col-span-2">
                   <CameraFeed 
                     activeCamera={selectedCamera} 
@@ -185,8 +231,6 @@ export default function Dashboard({ user, onLogout }) {
                     onDetectedCriminalsChange={setDetectedCriminals}
                   />
                 </div>
-                
-                {/* ✅ Criminal Cards - Right side (1 column, scrollable) */}
                 <div className="space-y-4">
                   <DetectedCriminalsPanel 
                     criminals={detectedCriminals}
@@ -198,7 +242,7 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       )}
 
-      {/* IMAGE VIEWER */}
+      {/* IMAGE VIEWER: Full-resolution subject inspection */}
       {viewingImageUrl && (
         <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-lg flex items-center justify-center p-8 animate-in fade-in" onClick={() => setViewingImageUrl(null)}>
             <div className="bg-[#0c0f16] border border-white/10 rounded-[2.5rem] p-8 relative shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -218,7 +262,10 @@ export default function Dashboard({ user, onLogout }) {
   )
 }
 
-// ✅ NEW: Detected Criminals Panel Component (right side with scroll)
+/**
+ * DETECTED CRIMINALS PANEL
+ * Displays a list of subjects identified within the currently inspected node.
+ */
 function DetectedCriminalsPanel({ criminals, onViewImage }) {
   const downloadImage = (url, filename) => {
     const a = document.createElement('a')
@@ -232,30 +279,23 @@ function DetectedCriminalsPanel({ criminals, onViewImage }) {
   if (criminals.length === 0) {
     return (
       <div className="bg-slate-900/30 border border-white/5 rounded-2xl p-6 text-center">
-        <div className="text-slate-500 text-sm font-medium">
-          ✅ No threats detected
-        </div>
-        <div className="text-slate-600 text-xs mt-1">
-          Scanning in progress...
-        </div>
+        <div className="text-slate-500 text-sm font-medium">✅ No threats detected</div>
+        <div className="text-slate-600 text-[10px] uppercase font-bold tracking-widest mt-1">Scanning in progress...</div>
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between px-1">
         <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-          <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
-          Criminals Detected
+          <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div> Criminals Detected
         </h3>
         <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
           {criminals.length} Active
         </span>
       </div>
 
-      {/* ✅ Scrollable Cards Container */}
       <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-2 custom-scrollbar">
         {criminals.map((criminal, idx) => (
           <CriminalCardCompact 
@@ -271,7 +311,10 @@ function DetectedCriminalsPanel({ criminals, onViewImage }) {
   )
 }
 
-// ✅ Compact Criminal Card for right panel
+/**
+ * COMPACT CRIMINAL CARD
+ * Displays individual subject details, confidence score, and detection metrics.
+ */
 function CriminalCardCompact({ criminal, index, onViewImage, onDownload }) {
   const timeSinceFirst = Math.round((criminal.lastSeen - criminal.firstSeen) / 1000)
   const imageUrl = criminal.photo_url || criminal.image_url
@@ -281,7 +324,6 @@ function CriminalCardCompact({ criminal, index, onViewImage, onDownload }) {
       className="bg-slate-900/50 border-2 border-red-500/30 rounded-xl p-4 hover:border-red-500/50 transition-all shadow-xl"
       style={{ animation: `slideIn 0.3s ease-out ${index * 0.1}s both` }}>
       <div className="flex gap-3">
-        {/* Photo */}
         <div className="relative group flex-shrink-0">
           {imageUrl ? (
             <>
@@ -291,46 +333,27 @@ function CriminalCardCompact({ criminal, index, onViewImage, onDownload }) {
                 className="w-16 h-16 rounded-lg object-cover border-2 border-red-500/50 cursor-pointer"
                 onClick={() => onViewImage(imageUrl)}
               />
-              {/* Hover actions */}
               <div className="absolute inset-0 bg-black/70 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity h-16 flex items-center justify-center gap-1">
-                <button
-                  onClick={() => onViewImage(imageUrl)}
-                  className="bg-white-600 p-1.5 rounded"
-                  title="View">
-                  <Eye size={12} className="text-white" />
-                </button>
+                <button onClick={() => onViewImage(imageUrl)} className="bg-white-600 p-1.5 rounded" title="View"><Eye size={12} className="text-white" /></button>
               </div>
             </>
           ) : (
-            <div className="w-16 h-16 rounded-lg bg-red-500/10 border-2 border-red-500/50 flex items-center justify-center text-2xl">
-              👤
-            </div>
+            <div className="w-16 h-16 rounded-lg bg-red-500/10 border-2 border-red-500/50 flex items-center justify-center text-2xl">👤</div>
           )}
           <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-slate-900">
             {criminal.confidence}%
           </div>
         </div>
 
-        {/* Details */}
         <div className="flex-1 min-w-0">
           <h4 className="text-white font-bold text-sm mb-0.5 truncate">{criminal.name}</h4>
           <p className="text-red-400 text-xs font-medium mb-2">{criminal.crime}</p>
-          
           <div className="flex flex-wrap gap-1.5 text-[9px]">
-            <span className="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded font-bold uppercase">
-              Age: {criminal.age || 'N/A'}
-            </span>
-            <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-bold uppercase border border-red-500/30">
-              {criminal.risk_level || 'Medium'}
-            </span>
+            <span className="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded font-bold uppercase">Age: {criminal.age || 'N/A'}</span>
+            <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-bold uppercase border border-red-500/30">{criminal.risk_level || 'Medium'}</span>
           </div>
-
-          {/* Stats */}
           <div className="mt-2 flex items-center gap-2 text-[9px] text-slate-400">
-            <span className="flex items-center gap-1">
-              <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>
-              {criminal.detectionCount}x
-            </span>
+            <span className="flex items-center gap-1"><div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>{criminal.detectionCount}x</span>
             <span>•</span>
             <span>{timeSinceFirst}s</span>
           </div>
@@ -340,14 +363,12 @@ function CriminalCardCompact({ criminal, index, onViewImage, onDownload }) {
   )
 }
 
+/**
+ * ADD NODE MODAL
+ * Purpose: Form to integrate new surveillance hardware (Webcam/IP/Static) into the registry.
+ */
 function AddNodeModal({ onAdd, onClose }) {
-  const [formData, setFormData] = useState({
-    name: '',
-    location: '',
-    coordinates: '',
-    type: 'webcam',
-    source: ''
-  })
+  const [formData, setFormData] = useState({ name: '', location: '', coordinates: '', type: 'webcam', source: '' })
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -362,116 +383,41 @@ function AddNodeModal({ onAdd, onClose }) {
           <h3 className="text-lg font-bold text-white uppercase tracking-tight">Add Surveillance Node</h3>
           <button onClick={onClose} className="p-2 bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl transition-all"><X size={20} /></button>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Node Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
-              placeholder="ENTRY_CAM_01"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Location</label>
-            <input
-              type="text"
-              value={formData.location}
-              onChange={(e) => setFormData({...formData, location: e.target.value})}
-              placeholder="Main Entrance"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Coordinates</label>
-            <input
-              type="text"
-              value={formData.coordinates}
-              onChange={(e) => setFormData({...formData, coordinates: e.target.value})}
-              placeholder="28.61, 77.20"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Camera Type</label>
-            <select
-              value={formData.type}
-              onChange={(e) => setFormData({...formData, type: e.target.value})}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
-            >
-              <option value="webcam" className="bg-slate-900">📹 Webcam (Local Camera)</option>
-              <option value="ip" className="bg-slate-900">🌐 IP Camera (RTSP/HTTP Stream)</option>
-              <option value="image" className="bg-slate-900">🖼️ Static Image (Upload)</option>
-            </select>
-          </div>
-
-          {formData.type === 'ip' && (
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Stream URL</label>
-              <input
-                type="url"
-                value={formData.source}
-                onChange={(e) => setFormData({...formData, source: e.target.value})}
-                placeholder="rtsp://192.168.1.100:554/stream"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
-              />
-            </div>
-          )}
-
-          {formData.type === 'image' && (
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Image URL</label>
-              <input
-                type="url"
-                value={formData.source}
-                onChange={(e) => setFormData({...formData, source: e.target.value})}
-                placeholder="https://example.com/camera-image.jpg"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
-              />
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="submit"
-              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold uppercase text-sm transition-all"
-            >
-              Add Node
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 border border-white/5 text-slate-500 py-3 rounded-xl text-sm font-bold uppercase transition-all"
-            >
-              Cancel
-            </button>
-          </div>
+          <div><label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Node Name</label><input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="ENTRY_CAM_01" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all" required /></div>
+          <div><label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Location</label><input type="text" value={formData.location} onChange={(e) => setFormData({...formData, location: e.target.value})} placeholder="Main Entrance" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all" required /></div>
+          <div><label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Coordinates</label><input type="text" value={formData.coordinates} onChange={(e) => setFormData({...formData, coordinates: e.target.value})} placeholder="28.61, 77.20" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all" /></div>
+          <div><label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Camera Type</label><select value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"><option value="webcam" className="bg-slate-900">📹 Webcam (Local Camera)</option><option value="ip" className="bg-slate-900">🌐 IP Camera (RTSP/HTTP Stream)</option><option value="image" className="bg-slate-900">🖼️ Static Image (Upload)</option></select></div>
+          {formData.type === 'ip' && (<div><label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Stream URL</label><input type="url" value={formData.source} onChange={(e) => setFormData({...formData, source: e.target.value})} placeholder="rtsp://192.168.1.100:554/stream" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all" /></div>)}
+          {formData.type === 'image' && (<div><label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">Image URL</label><input type="url" value={formData.source} onChange={(e) => setFormData({...formData, source: e.target.value})} placeholder="https://example.com/camera-image.jpg" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all" /></div>)}
+          <div className="flex gap-3 pt-4"><button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold uppercase text-sm transition-all">Add Node</button><button type="button" onClick={onClose} className="px-6 border border-white/5 text-slate-500 py-3 rounded-xl text-sm font-bold uppercase transition-all">Cancel</button></div>
         </form>
       </div>
     </div>
   )
 }
 
+// Visual indicator card for Key Performance Indicators
 function KPICard({ icon, label, value, color }) {
   const themes = { blue: 'border-blue-500/10 bg-blue-500/5 text-blue-500', red: 'border-red-500/10 bg-red-500/5 text-red-500 shadow-[0_0_25px_rgba(239,68,68,0.05)]', green: 'border-emerald-500/10 bg-emerald-500/5 text-emerald-500', slate: 'border-white/5 bg-white/[0.02] text-slate-300' }
   return ( <div className={`border rounded-[1.8rem] p-7 transition-all hover:translate-y-[-2px] ${themes[color]}`}><div className="flex items-center gap-3 mb-4 opacity-60 font-bold uppercase text-[10px] tracking-[0.1em]">{icon} {label}</div><p className="text-2xl font-bold tracking-tight">{value}</p></div> )
 }
 
+// Button component for switching between dashboard tabs
 function TabBtn({ active, label, onClick, icon }) {
     return ( <button onClick={onClick} className={`flex-1 py-4 flex items-center justify-center gap-3 text-[10px] font-bold uppercase tracking-widest transition-all rounded-xl ${active ? 'bg-white/5 text-white shadow-sm' : 'text-slate-600 hover:text-slate-400'}`}>{icon} {label}</button> )
 }
 
+// Container for analytical charts with branding and icons
 function ChartContainer({ title, children, icon }) {
     return ( <div className="bg-slate-900/30 border border-white/5 rounded-[2rem] p-7 shadow-sm"><div className="flex items-center gap-2 mb-8">{icon}<h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0">{title}</h4></div>{children}</div> )
 }
 
+/**
+ * GRID NODE COMPONENT
+ * Background surveillance module that performs low-frequency facial scanning 
+ * for nodes not currently selected in the 'Inspector Core'.
+ */
 function GridNode({ camera, criminals, onUpdate }) {
   const videoRef = useRef(null)
   const criminalsRef = useRef(criminals)
@@ -490,6 +436,7 @@ function GridNode({ camera, criminals, onUpdate }) {
           if (cancelled) return
           if (videoRef.current) videoRef.current.srcObject = stream
 
+          // Low-frequency pulse (12 seconds) to keep global states updated without heavy CPU usage
           scanInterval = setInterval(async () => {
             if (!videoRef.current || videoRef.current.readyState < 2 || criminalsRef.current.length === 0) return;
             try {
@@ -498,11 +445,9 @@ function GridNode({ camera, criminals, onUpdate }) {
                 const bestMatch = matches[0]
                 onUpdate(bestMatch, camera, matches.length, null, bestMatch.confidence)
               } else {
-                // Agar koi nahi mila toh status reset karo
                 onUpdate(null, camera, 0, null, 0)
               }
-            } catch (e) {
-            }
+            } catch (e) { }
           }, 12000)
         })
         .catch(err => console.error('GridNode stream error:', err))
@@ -517,11 +462,9 @@ function GridNode({ camera, criminals, onUpdate }) {
   return (
     <div className="w-full h-full relative">
       {camera.type === 'webcam' ? (
-        <video ref={videoRef} autoPlay muted playsInline
-          className="w-full h-full object-cover" />
+        <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
       ) : (
-        <img src={camera.source} crossOrigin="anonymous"
-          className="w-full h-full object-cover" alt="feed" />
+        <img src={camera.source} crossOrigin="anonymous" className="w-full h-full object-cover" alt="feed" />
       )}
     </div>
   )

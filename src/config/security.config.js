@@ -1,16 +1,22 @@
-// Security configuration file
-// Update these before production deployment
+/**
+ * VIGIBYTE GLOBAL SECURITY CONFIGURATION
+ * Purpose: Centralized security policy for the surveillance analytics platform.
+ * This file governs authentication, data encryption, network protection, and audit protocols.
+ * * NOTE: Ensure environment variables (process.env) are configured in the production environment.
+ */
 
 const securityConfig = {
-  // Authentication
+  // --- AUTHENTICATION (JWT) ---
+  // Controls the issuance and validation of JSON Web Tokens for user sessions.
   jwt: {
-    secret: process.env.JWT_SECRET || 'change-me-in-production-min-32-chars',
-    expiresIn: '24h',
-    refreshTokenExpiry: '7d',
-    algorithm: 'HS256'
+    secret: process.env.JWT_SECRET || 'change-me-in-production-min-32-chars', // Signing key
+    expiresIn: '24h',           // Access token lifespan
+    refreshTokenExpiry: '7d',   // Duration before user must re-authenticate
+    algorithm: 'HS256'          // Symmetric signing algorithm
   },
 
-  // Password Policy
+  // --- PASSWORD COMPLIANCE POLICY ---
+  // Enforces industry-standard complexity to prevent credential-based attacks.
   password: {
     minLength: 8,
     requireUppercase: true,
@@ -18,35 +24,38 @@ const securityConfig = {
     requireNumbers: true,
     requireSpecialChars: true,
     specialChars: '@$!%*?&',
-    expiryDays: 90, // Force password change every 90 days
-    historyCount: 5 // Can't reuse last 5 passwords
+    expiryDays: 90,             // Rotation policy to mitigate stale credential risk
+    historyCount: 5             // Prevents cycling through recent passwords
   },
 
-  // Session Management
+  // --- SESSION LIFECYCLE MANAGEMENT ---
+  // Manages the state and duration of active user connections.
   session: {
-    timeout: 24 * 60 * 60 * 1000, // 24 hours
-    absoluteTimeout: 7 * 24 * 60 * 60 * 1000, // 7 days max
-    renewThreshold: 1 * 60 * 60 * 1000, // Renew if less than 1 hour left
-    simultaneousSessions: 3 // Max 3 concurrent sessions per user
+    timeout: 24 * 60 * 60 * 1000,             // Sliding window timeout (24h)
+    absoluteTimeout: 7 * 24 * 60 * 60 * 1000,  // Maximum session duration (7 days)
+    renewThreshold: 1 * 60 * 60 * 1000,        // Automatic renewal if < 1 hour remains
+    simultaneousSessions: 3                   // Restriction on concurrent logins per user
   },
 
-  // Rate Limiting
+  // --- BRUTE FORCE & DOS PROTECTION ---
+  // Limits request frequency to prevent automated attacks on sensitive endpoints.
   rateLimit: {
     login: {
-      maxAttempts: 5,
-      windowMs: 15 * 60 * 1000 // 15 minutes
+      maxAttempts: 5,           // Threshold for account lockout or cooldown
+      windowMs: 15 * 60 * 1000  // 15-minute cooldown period
     },
     api: {
       maxRequests: 1000,
-      windowMs: 15 * 60 * 1000 // 1000 requests per 15 minutes
+      windowMs: 15 * 60 * 1000  // General API traffic throttling
     },
     imageUpload: {
       maxRequests: 50,
-      windowMs: 60 * 60 * 1000 // 50 uploads per hour
+      windowMs: 60 * 60 * 1000  // Throttling for resource-heavy upload operations
     }
   },
 
-  // Data Encryption
+  // --- DATA AT REST ENCRYPTION ---
+  // Standard AES-256-GCM encryption for sensitive database fields.
   encryption: {
     algorithm: 'aes-256-gcm',
     key: process.env.ENCRYPTION_KEY || 'change-me-32-character-key-here',
@@ -58,7 +67,8 @@ const securityConfig = {
     ]
   },
 
-  // CORS (Cross-Origin Resource Sharing)
+  // --- NETWORK ACCESS CONTROL (CORS) ---
+  // Restricts cross-origin requests to trusted domains only.
   cors: {
     allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || [
       'http://localhost:5173',
@@ -66,25 +76,27 @@ const securityConfig = {
     ],
     allowedMethods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-    maxAge: 86400 // 24 hours
+    credentials: true,          // Allows cookies/auth headers to be sent
+    maxAge: 86400               // Cache duration for pre-flight requests (24h)
   },
 
-  // Security Headers
+  // --- HTTP SECURITY HEADERS ---
+  // Enforces browser-level security policies like HSTS and CSP.
   headers: {
-    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload', // Enforce HTTPS
     'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'X-XSS-Protection': '1; mode=block',
+    'X-Content-Type-Options': 'nosniff',      // Prevents MIME-sniffing
+    'X-Frame-Options': 'DENY',                // Clickjacking protection
+    'X-XSS-Protection': '1; mode=block',      // Anti-cross-site scripting
     'Referrer-Policy': 'strict-origin-when-cross-origin'
   },
 
-  // Audit Logging
+  // --- SYSTEM AUDIT TRAIL ---
+  // Logs critical system events for forensic analysis and compliance.
   audit: {
     enabled: true,
     logToDatabase: true,
-    retentionDays: 365, // Keep logs for 1 year
+    retentionDays: 365,         // Compliance-based log storage duration (1 year)
     events: [
       'login',
       'logout',
@@ -99,65 +111,70 @@ const securityConfig = {
     ]
   },
 
-  // File Upload Security
+  // --- FILE UPLOAD SECURITY ---
+  // Validates file integrity and type to prevent malicious payload execution.
   fileUpload: {
-    maxFileSize: 10 * 1024 * 1024, // 10MB
+    maxFileSize: 10 * 1024 * 1024, // 10MB limit
     allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-    scanForMalware: true,
+    scanForMalware: true,         // Enable integration with scanning services
     uploadPath: './uploads/secure',
     quarantinePath: './uploads/quarantine'
   },
 
-  // Database Security
+  // --- DATABASE SECURITY ---
+  // Ensures encrypted and restricted data access at the storage layer.
   database: {
-    enableSSL: true,
+    enableSSL: true,              // Required for cloud databases like Supabase
     connectionTimeout: 10000,
     statementTimeout: 30000,
-    rowLevelSecurity: true,
+    rowLevelSecurity: true,       // Enforces RBAC at the DB level
     enableAudit: true
   },
 
-  // 2FA (Two-Factor Authentication)
+  // --- MULTI-FACTOR AUTHENTICATION (MFA) ---
+  // Adds a secondary layer of verification for privileged accounts.
   twoFactor: {
     enabled: true,
-    requiredForRoles: ['admin'],
+    requiredForRoles: ['admin'],  // Mandatory for high-access users
     optionalForRoles: ['officer'],
-    method: 'totp', // Time-based One-Time Password
+    method: 'totp',               // Time-based One-Time Password (e.g., Google Authenticator)
     issuer: 'VigiByte'
   },
 
-  // IP Whitelisting (Optional)
+  // --- NETWORK WHITELISTING ---
+  // Optional IP-based restriction for command center access.
   ipWhitelist: {
-    enabled: false, // Set to true to restrict by IP
-    adminIPs: [
-      // Add admin IP addresses here
-    ],
-    officerIPs: [
-      // Add officer IP ranges here
-    ]
+    enabled: false,               // Global switch for IP filtering
+    adminIPs: [],                 // Authorized administrative IPs
+    officerIPs: []                // Authorized operational IP ranges
   },
 
-  // Backup Security
+  // --- BACKUP & DISASTER RECOVERY SECURITY ---
+  // Manages the security of encrypted system backups.
   backup: {
     enabled: true,
-    frequency: 'daily', // daily, weekly, monthly
+    frequency: 'daily',
     encryption: true,
     retentionDays: 30,
     offSiteBackup: true,
-    encryptionKeyRotation: 90 // days
+    encryptionKeyRotation: 90     // Key rotation policy for backup archives (days)
   },
 
-  // API Security
+  // --- API HARDENING ---
+  // Enforces data integrity and prevents common injection attacks.
   api: {
     requireApiKey: true,
-    apiKeyExpiration: 365 * 24 * 60 * 60 * 1000, // 1 year
+    apiKeyExpiration: 365 * 24 * 60 * 60 * 1000,
     validateContentType: true,
     preventParameterPollution: true,
     noSqlInjectionProtection: true
   }
 }
 
-// Export based on environment
+/**
+ * ENVIRONMENT-BASED EXPORT
+ * Automatically relaxes security settings in development mode for easier debugging.
+ */
 export default process.env.NODE_ENV === 'production' 
   ? securityConfig 
-  : { ...securityConfig, /* relaxed settings for dev */ }
+  : { ...securityConfig, /* Relaxed settings for dev can be added here */ }

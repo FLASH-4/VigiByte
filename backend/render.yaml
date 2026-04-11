@@ -1,10 +1,14 @@
+# --- INFRASTRUCTURE AS CODE (Render Configuration) ---
+# Purpose: This file automates the deployment of the VigiByte AI Engine on the Render platform.
+# It defines the environment, build process, and networking requirements.
+
 services:
   - type: web
-    name: vigibyte-api
-    env: docker
-    dockerfilePath: ./Dockerfile
-    plan: free
-    healthCheckPath: /health
+    name: vigibyte-api         # Unique name for the service in the Render dashboard
+    env: docker                # Specifies that the service will be built using a Docker container
+    dockerfilePath: ./Dockerfile # Path to the Docker instructions for the AI engine
+    plan: free                 # Utilizing the free tier (0 cost deployment)
+    healthCheckPath: /health   # Endpoint the platform pings to verify the system is responsive
     envVars:
-      - key: PORT
-        value: 8001
+      - key: PORT              # Environment variable to define the network port
+        value: 8001            # Must match the EXPOSE value in Dockerfile and Uvicorn settings

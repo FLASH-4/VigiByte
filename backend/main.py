@@ -10,39 +10,52 @@ import dlib
 import io
 import logging
 
+# --- LOGGING & HARDWARE CONFIGURATION ---
+# Initialize logging to track system behavior and errors.
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Check if CUDA (GPU) is available for dlib; determines if CNN or HOG should be preferred.
 USE_CNN = dlib.DLIB_USE_CUDA
 
 app = FastAPI(title="VigiByte Face Recognition API", version="1.0.0")
 
+# --- MIDDLEWARE CONFIGURATION ---
+# Enabling CORS for cross-origin communication between React frontend and FastAPI.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production: set to your frontend URL
+    allow_origins=["*"],  # Production Note: Restrict this to specific domain for security.
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ── Models ────────────────────────────────────────────────────────────────────
+# --- DATA MODELS (PYDANTIC) ---
+# Defining strict schemas for API request bodies.
 
 class EnrollRequest(BaseModel):
+    """Schema for adding a new subject to the database."""
     criminal_id: str
     name: str
-    image_base64: str  # base64 encoded image
+    image_base64: str  # Encoded image string from the client.
 
 class DetectRequest(BaseModel):
-    frame_base64: str           # base64 encoded video frame
-    criminals: list             # [{ id, name, face_descriptor: [128 floats] }]
-    threshold: float = 0.5     # lower = stricter match
+    """Schema for real-time detection requests sent from the video feed."""
+    frame_base64: str           # The current video frame being analyzed.
+    criminals: list             # Registry of known suspects: [{ id, name, face_descriptor }]
+    threshold: float = 0.5     # Tolerance for matching (Lower = stricter).
 
 class DescriptorRequest(BaseModel):
+    """Schema for direct vector extraction from a single image."""
     image_base64: str
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# --- HELPER FUNCTIONS ---
 
-# main.py mein decode_image
 def decode_image(base64_str: str):
+    """
+    Decodes a Base64 string into a NumPy array for AI processing.
+    Handles data URI prefixes and performs RGB conversion.
+    """
     try:
         if "," in base64_str:
             base64_str = base64_str.split(",")[1]
@@ -50,32 +63,40 @@ def decode_image(base64_str: str):
         img_bytes = base64.b64decode(base64_str)
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
         
-        # Memory release karne ke liye explicitly array conversion
+        # Explicit conversion to ensure memory is allocated correctly as a uint8 array.
         return np.array(img, dtype=np.uint8)
     except Exception as e:
-        logger.error(f"Memory Error during decoding: {e}")
+        logger.error(f"Image Decoding Error: {e}")
         raise HTTPException(status_code=400, detail="Corrupted Image Data")
 
 def get_face_encodings(img_array: np.ndarray) -> list:
-    """Get 128-d face encodings. Uses CNN model for better angle detection."""
-    # 'cnn' model handles tilted/angled faces much better than 'hog'
-    # number_of_times_to_upsample=1 catches smaller faces too
+    """
+    Extracts 128-dimensional face encodings.
+    Prioritizes the CNN model for better tilt and angle detection.
+    Falls back to HOG if no faces are found or hardware is limited.
+    """
+    # Logic: CNN is robust for surveillance; HOG is faster for CPU-bound tasks.
     model_to_use = "cnn" if USE_CNN else "hog"
+    
+    # number_of_times_to_upsample=1 increases detection chance for smaller faces.
     locations = face_recognition.face_locations(img_array, model=model_to_use, number_of_times_to_upsample=1)
+    
     if not locations:
-        # Fallback to hog if cnn finds nothing
+        # Secondary attempt using the standard HOG model if the primary fails.
         locations = face_recognition.face_locations(img_array, model="hog", number_of_times_to_upsample=1)
     
     if not locations:
         return [], []
     
+    # Generate the 128-float mathematical representation of the face.
     encodings = face_recognition.face_encodings(img_array, locations)
     return encodings, locations
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+# --- API ROUTES ---
 
 @app.get("/health")
 async def health():
+    """System heartbeat endpoint to verify API and AI model status."""
     print("🔔 Health check request received!")
     return {"status": "ok", "model": "face_recognition (dlib CNN)"}
 
@@ -83,9 +104,8 @@ async def health():
 @app.post("/get-descriptor")
 def get_descriptor(req: DescriptorRequest):
     """
-    Extract 128-d face descriptor from an image.
-    Call this when enrolling a criminal in CriminalDB.
-    Returns the descriptor to store in Supabase face_descriptor column.
+    Utility to extract a face descriptor during subject enrollment.
+    This vector is stored in the database for future comparison.
     """
     try:
         img = decode_image(req.image_base64)
@@ -95,11 +115,12 @@ def get_descriptor(req: DescriptorRequest):
             raise HTTPException(status_code=400, detail="No face detected in image")
         
         if len(encodings) > 1:
+            # Policy: Prevent enrollment if multiple faces are present to avoid data pollution.
             raise HTTPException(status_code=400, detail=f"{len(encodings)} faces detected — please use a photo with only 1 person")
 
         return {
             "success": True,
-            "descriptor": encodings[0].tolist(),  # 128 floats
+            "descriptor": encodings[0].tolist(),  # Converting NumPy array to list for JSON response.
             "face_count": len(encodings)
         }
     except HTTPException:
@@ -112,19 +133,18 @@ def get_descriptor(req: DescriptorRequest):
 @app.post("/detect")
 async def detect(req: DetectRequest):
     """
-    Detect faces in a video frame and match against criminal database.
-    Called every ~400ms from CameraFeed.jsx
-    
-    Returns list of matches with confidence score and bounding box.
+    Main identification engine. Matches detected faces in a frame against the known registry.
+    Calculates confidence scores based on Euclidean distance.
     """
     try:
         img = decode_image(req.frame_base64)
         encodings, locations = get_face_encodings(img)
 
+        # Early exit if no humans are found in the frame.
         if not encodings:
             return {"matches": [], "face_count": 0}
 
-        # Build known encodings from criminals list
+        # Convert suspect registry lists into optimized NumPy arrays for fast matrix comparison.
         known_encodings = []
         valid_criminals = []
         
@@ -141,17 +161,20 @@ async def detect(req: DetectRequest):
         matches = []
         img_height, img_width = img.shape[:2]
 
+        # Iterating through every face found in the current frame.
         for encoding, location in zip(encodings, locations):
-            # Compare this face against all criminals
+            # Calculate mathematical distance (Lower distance = Higher similarity).
             distances = face_recognition.face_distance(known_encodings, encoding)
             best_idx = int(np.argmin(distances))
             best_distance = float(distances[best_idx])
 
+            # Filter results based on the provided threshold.
             if best_distance <= req.threshold:
                 criminal = valid_criminals[best_idx]
+                # Mapping distance to a human-readable percentage score.
                 confidence = round((1 - best_distance) * 100)
 
-                # face_recognition returns (top, right, bottom, left)
+                # Convert coordinates to a standardized bounding box format.
                 top, right, bottom, left = location
                 matches.append({
                     "id": criminal["id"],
@@ -164,7 +187,7 @@ async def detect(req: DetectRequest):
                         "width": right - left,
                         "height": bottom - top
                     },
-                    # Pass through all criminal fields for alerts
+                    # Merge all other metadata fields for frontend alert displays.
                     **{k: v for k, v in criminal.items() if k not in ["face_descriptor"]}
                 })
 

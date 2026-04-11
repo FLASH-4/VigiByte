@@ -1,27 +1,37 @@
 import { useState } from 'react'
 import { Lock, AlertCircle, Eye, EyeOff, Shield, LogOut } from 'lucide-react'
 
+/**
+ * AuthPanel Component
+ * Purpose: Handles User Authentication (Login/Register) and Role Selection.
+ * Features: Password validation, show/hide password toggle, and Session Management UI.
+ */
 export default function AuthPanel({ onLogin, onLogout, user, error: externalError }) {
-  const [isLogin, setIsLogin] = useState(true)
+  const [isLogin, setIsLogin] = useState(true) // Toggle between Login and Registration modes
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [selectedRole, setSelectedRole] = useState('officer')
+  const [selectedRole, setSelectedRole] = useState('officer') // Default role for new users
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState('') // Local validation error state
   const [showPassword, setShowPassword] = useState(false)
 
+  // Standard Regex for Email Validation
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return re.test(email)
   }
 
+  // Security Policy: Minimum 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
   const validatePassword = (password) => {
-    // At least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
     const re = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
     return re.test(password)
   }
 
+  /**
+   * Form Submission Handler
+   * Validates inputs before passing credentials to the parent authentication function.
+   */
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -29,36 +39,39 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
 
     try {
       if (!email || !password) {
-        throw new Error('Email and password required')
+        throw new Error('Email and password required') // Basic check
       }
 
       if (!validateEmail(email)) {
-        throw new Error('Invalid email format')
+        throw new Error('Invalid email format') // Syntax check
       }
 
       if (isLogin) {
-        // Login
+        // Handle Login Logic
         if (password.length < 8) {
-          throw new Error('Invalid credentials')
+          throw new Error('Invalid credentials') // Minimal length check for security
         }
         onLogin({ email, password })
       } else {
-        // Register
+        // Handle Registration Logic
         if (password !== confirmPassword) {
-          throw new Error('Passwords do not match')
+          throw new Error('Passwords do not match') // UI-level validation
         }
         if (!validatePassword(password)) {
           throw new Error('Password must be 8+ chars with uppercase, lowercase, number, special char')
         }
+        // Send registration data including selected Role-Based Access Control (RBAC)
         onLogin({ email, password, isRegister: true, role: selectedRole })
       }
     } catch (err) {
-      setError(err.message)
+      setError(err.message) // Display error to the user
     } finally {
       setLoading(false)
     }
   }
 
+  // --- LOGGED-IN VIEW ---
+  // Displayed when the user is successfully authenticated via Supabase/Backend
   if (user) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4">
@@ -93,6 +106,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
     )
   }
 
+  // --- AUTHENTICATION FORM VIEW ---
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4">
       <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-8 max-w-md w-full shadow-2xl animate-in">
@@ -102,7 +116,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Email Input */}
+          {/* Email Input Field */}
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">
               Email Address
@@ -117,7 +131,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             />
           </div>
 
-          {/* Password Input */}
+          {/* Password Input with Visibility Toggle */}
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">
               Password
@@ -142,7 +156,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             </div>
           </div>
 
-          {/* Confirm Password (Register Only) */}
+          {/* Confirm Password (Visible only during Registration) */}
           {!isLogin && (
             <div>
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">
@@ -159,7 +173,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             </div>
           )}
 
-          {/* Role Selector (Register Only) */}
+          {/* Role-Based Access Control (RBAC) Selector */}
           {!isLogin && (
             <div>
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">
@@ -179,7 +193,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             </div>
           )}
 
-          {/* Error Message */}
+          {/* Unified Error Handling Display (Local + Backend) */}
           {(error || externalError) && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex gap-2">
               <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
@@ -187,7 +201,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             </div>
           )}
 
-          {/* Submit Button */}
+          {/* Dynamic Button Text based on Auth State */}
           <button
             type="submit"
             disabled={loading}
@@ -196,7 +210,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             {loading ? 'Processing...' : isLogin ? 'Login' : 'Register'}
           </button>
 
-          {/* Toggle Auth Mode */}
+          {/* Toggle between Login and Registration Mode */}
           <p className="text-center text-xs text-slate-400">
             {isLogin ? "Don't have an account? " : 'Already have an account? '}
             <button
@@ -214,7 +228,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
           </p>
         </form>
 
-        {/* Security Info */}
+        {/* Security Feature Highlights for UI/Presentation */}
         <div className="mt-8 pt-6 border-t border-white/10">
           <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-3">🔒 Security Features</p>
           <ul className="space-y-1.5 text-[10px] text-slate-400">

@@ -17,7 +17,29 @@ VigiByte is a real-time surveillance and criminal identification system built wi
 ---
 
 ## 🚀 Quick Start
-
+🛡️ VigiByte — AI-Powered Security Intelligence PlatformVigiByte is a production-grade, real-time surveillance and criminal identification system. It utilizes a Hybrid AI Architecture—combining high-performance Python-based CNN detection with browser-side fallback mechanisms to ensure 24/7 law enforcement monitoring.🏗️ Hybrid Architecture OverviewVigiByte operates on a dual-engine AI system:Primary Engine (Cloud/Edge): A Python FastAPI backend utilizing dlib's CNN (Convolutional Neural Network) for robust detection of angled, tilted, or partially occluded faces.Fallback Engine (Browser): Client-side face-api.js execution for real-time tracking and low-latency preprocessing.✨ Features🎥 Live Surveillance Hub — Multi-camera stream management with active tracking.🤖 Deep Learning Identification — Uses SsdMobilenetv1 and dlib CNN for forensic-grade accuracy.🗄️ Criminal Registry — Cloud-synced database with automatic biometric face enrollment.🔔 Instant Risk Alerts — Real-time visual and audio notifications for "High Risk" detections.📊 Forensic Analytics — Detailed detection history with captured screenshots and geolocation data.🔐 Zero-Cost Security — Enterprise-grade Auth (PBKDF2 + HMAC) using native browser Web Crypto API.🛠️ Tech StackLayerTechnologyFrontendReact 19 + Vite + Tailwind CSS v4AI BackendPython 3.10 + FastAPI + dlib (CNN)DatabaseSupabase (PostgreSQL) + Row Level Security (RLS)Computer Visionface-api.js + Roboflow (Person Counting)Auth & EncryptionWeb Crypto API (PBKDF2 SHA-256)DeploymentDocker & Docker Compose🚀 Quick Start1. PrerequisitesNode.js (v18+)Python (v3.10+)Docker (Optional for local stack)2. Backend Setup (AI Engine)Bashcd backend
+pip install -r requirements.txt
+python main.py
+3. Frontend SetupBash# From the root directory
+npm install
+cp .env.example .env  # Configure your Supabase & Backend URLs
+npm run dev
+📁 Project StructureVigiByte/
+├── backend/                # Python AI Engine (FastAPI + dlib)
+│   ├── main.py             # Recognition logic & API endpoints
+│   └── Dockerfile          # Containerization for AI engine
+├── public/
+│   └── models/             # Pre-trained Weights (SsdMobilenet, Landmarks)
+├── src/
+│   ├── components/         # UI: CameraFeed, Dashboard, AlertPanel
+│   ├── lib/                # Logic: faceRecognition, detectionHistory, supabase
+│   ├── services/           # Auth: browserAuth, roboflow (Scene Analysis)
+│   ├── utils/              # Testing: securityTests.js
+│   └── App.jsx             # Main Controller
+├── .env                    # System Configuration
+└── docker-compose.yml      # Full-stack Orchestration
+🔐 Security ProtocolsBiometric Integrity: Face descriptors are stored as 128-dimensional vectors (Biometric Hashing).Session Security: HMAC-SHA256 signed JWTs with automatic 24h expiration.Brute Force Protection: Client-side rate limiting (5 attempts per window).Audit Logging: Every action is logged in an immutable IndexedDB audit trail.🐳 ContainerizationDeploy the entire intelligence stack (Web + AI Backend + Local DB) with a single command:Bashdocker-compose up --build
+👤 User RolesAdmin: Full forensics, user management, and record deletion.Officer: Live monitoring, record creation, and history search.Viewer: Monitoring only (Read-only).📄 LicenseMIT License. Developed as a high-security Information Technology final-year project (Batch 2026).
 ### 1. Clone & Install
 ```bash
 git clone https://github.com/yourusername/VigiByte.git

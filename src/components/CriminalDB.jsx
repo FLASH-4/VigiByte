@@ -3,6 +3,11 @@ import { loadModels, getFaceDescriptor, getFaceDescriptorFromBackend, checkBacke
 import { Download, FileStack, RefreshCw, Plus, Trash2, ShieldAlert, X, UploadCloud, FileJson, Save } from 'lucide-react'
 import Papa from 'papaparse'
 
+/**
+ * IMAGE OPTIMIZATION UTILITY
+ * Purpose: Resizes images to a standard width before processing.
+ * Helps in maintaining consistent performance across different hardware.
+ */
 const resizeImage = (file, maxWidth = 640) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -19,7 +24,7 @@ const resizeImage = (file, maxWidth = 640) => {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         
-        // Quality 0.7 rakho (70% quality, file size bohot kam ho jayegi)
+        // Quality 0.7 balances file size and facial detail
         resolve(canvas.toDataURL('image/jpeg', 0.7));
       };
     };
@@ -27,6 +32,7 @@ const resizeImage = (file, maxWidth = 640) => {
 };
 
 export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 'viewer' }) {
+  // --- COMPONENT STATES ---
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ name: '', age: '', crime: '', crime_date: '', danger_level: 'MEDIUM' })
   const [photoFile, setPhotoFile] = useState(null)
@@ -38,6 +44,8 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
   const [selectedImage, setSelectedImage] = useState(null)
   const [csvUploading, setCsvUploading] = useState(false)
   const [csvMsg, setCsvMsg] = useState('')
+
+  // --- CSV FEATURE SECTION ---
 
   // 1. FEATURE: DOWNLOAD CURRENT FORM AS CSV
   const downloadFormAsCSV = () => {
@@ -71,7 +79,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
 
   // 3. FEATURE: EXPORT FULL DATABASE
   const exportToCSV = () => {
-    if (criminals.length === 0) return alert("Database khali hai")
+    if (criminals.length === 0) return alert("Database is empty")
     const exportData = criminals.map(c => ({ 
       Name: c.name, 
       Age: c.age, 
@@ -108,7 +116,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
 
           if (processedFiles === files.length) {
             try {
-              // Duplicates remove karo by name
+              // Remove duplicates based on name
               const uniqueMap = new Map()
               allParsedData.forEach(item => {
                 const key = (item.name || item.Name || `unknown_${Date.now()}_${Math.random()}`).toLowerCase().trim()
@@ -116,7 +124,6 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
               })
 
               const toInsert = Array.from(uniqueMap.values()).map(r => {
-                // Face descriptor parse karo agar CSV mein hai
                 let face_descriptor = []
                 const rawDescriptor = r.Face_Descriptor || r.face_descriptor
                 if (rawDescriptor) {
@@ -141,7 +148,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
 
               setCsvMsg(`Inserting ${toInsert.length} records...`)
 
-              // Upsert ki jagah simple insert karo — onConflict issue fix
+              // Process in batches of 50 to prevent network timeouts
               const BATCH_SIZE = 50
               let inserted = 0
 
@@ -153,7 +160,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
                 
                 if (error) {
                   console.error('Batch error:', error)
-                  // Ek ek karke insert karo agar batch fail ho
+                  // Fallback: Individual insertion if batch fails
                   for (const record of batch) {
                     const { error: singleError } = await supabase
                       .from('criminals')
@@ -188,34 +195,41 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
   }
 
   // --- CORE SYSTEM HANDLERS ---
+
+  /**
+   * ENROLLMENT HANDLER
+   * Resizes image, extracts facial vectors, and saves record to Supabase.
+   */
   async function handleSave() {
     if (!photoFile) { setMsg('Photo is Mandatory'); return }
-      setSaving(true);
-      setMsg('⚡ Optimizing Image & Scanning...');
+    setSaving(true);
+    setMsg('⚡ Optimizing Image & Scanning...');
 
-      try {
-        // 🟢 PERMANENT FIX: Send resized base64, not the original heavy file
-        const optimizedBase64 = await resizeImage(photoFile);
+    try {
+      // Step 1: Optimize and resize photo
+      const optimizedBase64 = await resizeImage(photoFile);
 
-        const backendAvailable = await checkBackend();
-        if (backendAvailable) {
-          // Ab ye bohot fast jayega aur server crash nahi hoga
-          descriptorArray = await getFaceDescriptorFromBackend(optimizedBase64);
-          setMsg('✅ AI Descriptor Extracted!');
-        } else {
-            // Browser fallback (Purana logic - tabhi chalega jab backend off ho)
-            setMsg('⚠️ Backend offline — using browser model...');
-            await loadModels();
-            const img = new Image(); 
-            img.src = preview; // Preview sirf browser display ke liye use ho raha hai
-            await new Promise(r => img.onload = r);
-            const descriptor = await getFaceDescriptor(img);
-            if (!descriptor) throw new Error("Face not found");
-            descriptorArray = Array.from(descriptor);
-          }
+      // Step 2: Extract AI Facial Vector
+      const backendAvailable = await checkBackend();
+      if (backendAvailable) {
+        // Preference: Use Python backend for feature extraction
+        descriptorArray = await getFaceDescriptorFromBackend(optimizedBase64);
+        setMsg('✅ AI Descriptor Extracted!');
+      } else {
+        // Fallback: Browser-based extraction if server is down
+        setMsg('⚠️ Backend offline — using browser model...');
+        await loadModels();
+        const img = new Image(); 
+        img.src = preview; 
+        await new Promise(r => img.onload = r);
+        const descriptor = await getFaceDescriptor(img);
+        if (!descriptor) throw new Error("Face not found");
+        descriptorArray = Array.from(descriptor);
+      }
 
       if (!descriptorArray) { setMsg('Face Not Found.'); setSaving(false); return }
 
+      // Step 3: Upload photo to storage bucket
       let photo_url = null
       if (supabase && supabase.storage) {
         try {
@@ -223,6 +237,8 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
           if (ud) photo_url = supabase.storage.from('criminal-photos').getPublicUrl(ud.path).data.publicUrl
         } catch (e) { console.error("Storage upload error") }
       }
+
+      // Step 4: Insert final data into database
       const { error } = await supabase.from('criminals').insert({
         name: form.name || 'Unknown Subject',
         age: parseInt(form.age) || null,
@@ -232,20 +248,21 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
         face_descriptor: descriptorArray,
         photo_url,
       })
+
       if (error) throw error
       setMsg('✅ Entry Successful!')
-      // Form ko clear karo
+      
+      // Cleanup UI
       setForm({ name: '', age: '', crime: '', crime_date: '', danger_level: 'MEDIUM' })
-      setPhotoFile(null)
-      setPreview(null)
-      onRefresh()
+      setPhotoFile(null); setPreview(null); onRefresh()
       setTimeout(() => {
         setAdding(false)
-        setMsg('') // Message ko clear karo
+        setMsg('') 
       }, 1500)
     } catch (err) { setMsg('Error: ' + err.message) } finally { setSaving(false) }
   }
 
+  // Handle record deletion
   async function handleDelete() {
     if (!deleteTarget) return
     setDeleting(true)
@@ -256,17 +273,22 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
   return (
     <div className="space-y-6 font-sans">
       
-      {/* Modals Section */}
+      {/* --- MODAL COMPONENTS --- */}
+      
+      {/* Purge Record Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
           <div className="bg-[#0f121a] border border-white/10 rounded-2xl p-8 w-full max-w-sm space-y-6 shadow-2xl">
             <div className="text-center"><ShieldAlert size={48} className="text-red-500 mx-auto mb-4" /><h3 className="font-bold text-white text-lg uppercase">Purge Record</h3></div>
-            <div className="flex gap-3"><button onClick={() => setDeleteTarget(null)} className="flex-1 bg-white/5 text-slate-400 py-3 rounded-xl text-[10px] font-bold uppercase">Abort</button>
-            <button onClick={handleDelete} disabled={deleting} className="flex-1 bg-red-600 text-white py-3 rounded-xl text-[10px] font-bold uppercase">{deleting ? 'Purging...' : 'Delete'}</button></div>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 bg-white/5 text-slate-400 py-3 rounded-xl text-[10px] font-bold uppercase">Abort</button>
+              <button onClick={handleDelete} disabled={deleting} className="flex-1 bg-red-600 text-white py-3 rounded-xl text-[10px] font-bold uppercase">{deleting ? 'Purging...' : 'Delete'}</button>
+            </div>
           </div>
         </div>
       )}
 
+      {/* Subject Image Preview Modal */}
       {selectedImage && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[200]" onClick={() => setSelectedImage(null)}>
           <div className="relative max-w-lg w-full mx-4" onClick={e => e.stopPropagation()}>
@@ -276,9 +298,12 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
         </div>
       )}
 
-      {/* Toolbar */}
+      {/* --- UI TOOLBAR --- */}
       <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 p-5 rounded-2xl">
-        <div><h2 className="text-sm font-bold text-white uppercase tracking-tight">Criminal Registry {userRole === 'viewer' && <span className="text-slate-500">(View-Only)</span>}</h2><p className="text-[9px] text-slate-500 font-bold uppercase mt-1 tracking-widest">{criminals.length} Active Records</p></div>
+        <div>
+          <h2 className="text-sm font-bold text-white uppercase tracking-tight">Criminal Registry {userRole === 'viewer' && <span className="text-slate-500">(View-Only)</span>}</h2>
+          <p className="text-[9px] text-slate-500 font-bold uppercase mt-1 tracking-widest">{criminals.length} Active Records</p>
+        </div>
         <div className="flex gap-2">
           <button onClick={onRefresh} className="p-2.5 text-slate-400 hover:text-white"><RefreshCw size={16}/></button>
           <button onClick={exportToCSV} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-200 text-[10px] font-bold uppercase rounded-xl border border-white/5 transition-all"><Download size={14}/> Full DB Export</button>
@@ -286,7 +311,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
         </div>
       </div>
 
-      {/* RESTORED BULK SYNC TOOL */}
+      {/* --- BULK SYNC TOOL --- */}
       {userRole !== 'viewer' && (
       <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-5">
@@ -304,7 +329,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
       </div>
       )}
 
-      {/* Enrollment Form */}
+      {/* --- ENROLLMENT FORM --- */}
       {adding && userRole !== 'viewer' && (
         <div className="bg-[#0f121a] border border-white/10 rounded-2xl p-8 space-y-6 animate-in slide-in-from-top-4 duration-300">
           <div className="grid grid-cols-2 gap-5">
@@ -324,7 +349,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
         </div>
       )}
 
-      {/* List */}
+      {/* --- REGISTRY LIST VIEW --- */}
       <div className="space-y-2 mt-6">
         {criminals.map(c => (
           <div key={c.id} className="bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] rounded-2xl p-4 flex items-center gap-5 transition-all group">

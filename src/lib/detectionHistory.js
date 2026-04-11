@@ -1,14 +1,25 @@
-// Detection History Manager
-// Stores all criminal detections with timestamps, camera info, and screenshots
+/**
+ * DETECTION HISTORY MANAGER
+ * Purpose: Provides a persistent local storage layer using IndexedDB for audit trails.
+ * Handles criminal detection logs, metadata indexing, and visual evidence (screenshots).
+ * This ensures high-performance data retrieval without incurring cloud database costs.
+ */
 
 class DetectionHistoryDB {
+  /**
+   * Initialize Database Configuration
+   */
   constructor() {
-    this.dbName = 'vigibyte_detections'
-    this.storeName = 'detection_history'
+    this.dbName = 'vigibyte_detections' // Database name
+    this.storeName = 'detection_history' // Object store name
     this.db = null
     this.initDB()
   }
 
+  /**
+   * DATABASE INITIALIZATION
+   * Sets up the IndexedDB schema and creates searchable indexes for analytics.
+   */
   async initDB() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, 1)
@@ -19,6 +30,7 @@ class DetectionHistoryDB {
         resolve(this.db)
       }
       
+      // Schema definition for version upgrades
       request.onupgradeneeded = (event) => {
         const db = event.target.result
         
@@ -28,7 +40,7 @@ class DetectionHistoryDB {
             autoIncrement: true 
           })
           
-          // Indexes for fast searching
+          // Defining searchable indexes for fast querying and report generation
           store.createIndex('timestamp', 'timestamp', { unique: false })
           store.createIndex('criminal_id', 'criminal_id', { unique: false })
           store.createIndex('camera_id', 'camera_id', { unique: false })
@@ -39,6 +51,9 @@ class DetectionHistoryDB {
     })
   }
 
+  /**
+   * Health check to ensure the database connection is active before operations.
+   */
   async ensureDB() {
     if (!this.db) {
       await this.initDB()
@@ -47,13 +62,15 @@ class DetectionHistoryDB {
   }
 
   /**
-   * Save a detection event
+   * EVENT LOGGING
+   * Persists a detection event with complete forensic metadata.
    */
   async saveDetection(detection) {
     const db = await this.ensureDB()
     const transaction = db.transaction([this.storeName], 'readwrite')
     const store = transaction.objectStore(this.storeName)
     
+    // Structuring the record with criminal, camera, and session details
     const record = {
       criminal_id: detection.criminal.id,
       criminal_name: detection.criminal.name,
@@ -66,8 +83,8 @@ class DetectionHistoryDB {
       camera_location: detection.camera.location,
       camera_coordinates: detection.camera.coordinates,
       timestamp: Date.now(),
-      date: new Date().toISOString().split('T')[0], // YYYY-MM-DD for grouping
-      screenshot: detection.screenshot, // Base64 screenshot
+      date: new Date().toISOString().split('T')[0], // Standard ISO format for daily grouping
+      screenshot: detection.screenshot, // Base64 encoded frame for visual evidence
       photo_url: detection.criminal.photo_url || detection.criminal.image_url,
       user_id: detection.user_id || 'unknown',
       user_email: detection.user_email || 'unknown'
@@ -81,7 +98,8 @@ class DetectionHistoryDB {
   }
 
   /**
-   * Get all detections with optional filters
+   * DATA RETRIEVAL & FILTERING
+   * Fetches detection records with multi-parameter filtering support.
    */
   async getDetections(filter = {}) {
     const db = await this.ensureDB()
@@ -94,7 +112,7 @@ class DetectionHistoryDB {
       request.onsuccess = () => {
         let results = request.result
         
-        // Apply filters
+        // Application-level filtering logic
         if (filter.criminal_id) {
           results = results.filter(r => r.criminal_id === filter.criminal_id)
         }
@@ -113,10 +131,10 @@ class DetectionHistoryDB {
           )
         }
         
-        // Sort by timestamp (newest first)
+        // Sort chronologically (most recent first)
         results.sort((a, b) => b.timestamp - a.timestamp)
         
-        // Limit results if specified
+        // Pagination/Limit support
         if (filter.limit) {
           results = results.slice(0, filter.limit)
         }
@@ -129,7 +147,8 @@ class DetectionHistoryDB {
   }
 
   /**
-   * Get detection statistics
+   * ANALYTICS AGGREGATION
+   * Generates statistical summaries for the dashboard KPI cards.
    */
   async getStats() {
     const detections = await this.getDetections()
@@ -154,21 +173,17 @@ class DetectionHistoryDB {
     let totalConfidence = 0
     
     detections.forEach(det => {
-      // Time-based counts
+      // Time-series aggregation
       if (det.date === todayStr) stats.today++
       if (det.date >= weekAgo) stats.thisWeek++
       if (det.date >= monthAgo) stats.thisMonth++
       
-      // By criminal
+      // Categorical grouping
       stats.byCriminal[det.criminal_id] = (stats.byCriminal[det.criminal_id] || 0) + 1
-      
-      // By camera
       stats.byCamera[det.camera_id] = (stats.byCamera[det.camera_id] || 0) + 1
-      
-      // By date
       stats.byDate[det.date] = (stats.byDate[det.date] || 0) + 1
       
-      // Confidence
+      // Quality metric calculation
       if (det.confidence >= 80) stats.highConfidence++
       totalConfidence += det.confidence
     })
@@ -181,7 +196,8 @@ class DetectionHistoryDB {
   }
 
   /**
-   * Delete old detections (data retention)
+   * DATA RETENTION POLICY
+   * Automatically purges records older than a specific threshold to manage disk space.
    */
   async deleteOldDetections(daysToKeep = 90) {
     const db = await this.ensureDB()
@@ -211,7 +227,8 @@ class DetectionHistoryDB {
   }
 
   /**
-   * Export detections to CSV
+   * REPORT GENERATION (CSV)
+   * Serializes detection history into a CSV string for external audit reports.
    */
   async exportToCSV(filter = {}) {
     const detections = await this.getDetections(filter)
@@ -246,7 +263,8 @@ class DetectionHistoryDB {
   }
 
   /**
-   * Clear all detection history
+   * EMERGENCY PURGE
+   * Wipes all records from the local object store.
    */
   async clearAll() {
     const db = await this.ensureDB()
@@ -261,10 +279,13 @@ class DetectionHistoryDB {
   }
 }
 
-// Export singleton instance
+// Singleton export to manage global state consistently across the app
 export const detectionHistory = new DetectionHistoryDB()
 
-// Helper function to capture screenshot from video
+/**
+ * VISUAL EVIDENCE CAPTURE
+ * Grabs the current frame from a HTMLVideoElement and compresses it as a JPEG.
+ */
 export async function captureScreenshot(videoElement) {
   if (!videoElement) return null
   
@@ -275,6 +296,6 @@ export async function captureScreenshot(videoElement) {
   const ctx = canvas.getContext('2d')
   ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height)
   
-  // Convert to base64 (compressed JPEG)
+  // Return optimized base64 string at 70% quality to minimize storage footprint
   return canvas.toDataURL('image/jpeg', 0.7)
 }

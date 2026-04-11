@@ -1,4 +1,9 @@
-# Logs
+# --- VIGIBYTE MASTER GIT IGNORE POLICY ---
+# Purpose: Prevents local environment data, temporary logs, and 
+# large dependency folders from being tracked in version control.
+
+# --- SYSTEM & APPLICATION LOGS ---
+# Prevents debug logs from cluttering the repository history
 logs
 *.log
 npm-debug.log*
@@ -7,12 +12,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# --- DEPENDENCIES & BUILD OUTPUTS ---
+# node_modules should always be excluded to keep the repo size minimal
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# --- EDITOR & IDE CONFIGURATIONS ---
+# Specific settings for VS Code, IntelliJ, and Visual Studio
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -23,4 +31,6 @@ dist-ssr
 *.sln
 *.sw?
 
+# --- SECURITY & ENVIRONMENT ---
+# CRITICAL: Prevents accidental exposure of API keys (Supabase, Roboflow, JWT)
 .env

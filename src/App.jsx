@@ -5,35 +5,48 @@ import {
   generateToken, 
   verifyToken, 
   hashPassword, 
-  comparePasswords,  // ✅ FIXED: Added this import
+  comparePasswords, 
   loginLimiter,
   auditLogger 
 } from './services/browserAuth.js'
 
+/**
+ * VIGIBYTE ROOT COMPONENT (App.jsx)
+ * Purpose: Acts as the Application Controller. 
+ * Manages the top-level state for user authentication, session persistence, 
+ * and orchestration between the AuthPanel and the main Dashboard.
+ */
 export default function App() {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [authError, setAuthError] = useState('')
+  // --- APPLICATION STATE ---
+  const [user, setUser] = useState(null)          // Stores current authenticated user metadata
+  const [loading, setLoading] = useState(true)    // Handles the global initial loading state
+  const [authError, setAuthError] = useState('')  // Captures and displays authentication failures
+  
+  // Persistent User Registry: Syncs with LocalStorage to simulate a database for demo purposes
   const [users, setUsers] = useState(() => {
-    // Load users from localStorage (demo database)
     const saved = localStorage.getItem('vigibyte_users')
     return saved ? JSON.parse(saved) : []
   })
 
-  // Check if already logged in (on page load)
+  /**
+   * SESSION RESTORATION (Auto-Login)
+   * On application mount, verifies if a valid JWT exists in LocalStorage.
+   * Ensures secure session persistence across browser refreshes.
+   */
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('vigibyte_token')
       const userData = localStorage.getItem('vigibyte_user')
       
       if (token && userData) {
-        const verified = await verifyToken(token)  // ✅ Now async
+        // Cryptographic verification of the existing session token
+        const verified = await verifyToken(token) 
         if (verified) {
           setUser(JSON.parse(userData))
-          // Log successful session restoration
+          // Forensic log of the restored session
           await auditLogger.log('session_restored', verified.id, verified.email)
         } else {
-          // Token expired, clear storage
+          // Automatic cleanup of expired or tampered session tokens
           localStorage.removeItem('vigibyte_token')
           localStorage.removeItem('vigibyte_user')
         }
@@ -44,7 +57,11 @@ export default function App() {
     checkAuth()
   }, [])
 
-  // Handle Login
+  /**
+   * AUTHENTICATION HANDLER
+   * Orchestrates both Registration and Login workflows.
+   * Includes rate limiting, password hashing (PBKDF2), and audit logging.
+   */
   const handleLogin = async (credentials) => {
     setAuthError('')
     setLoading(true)
@@ -52,28 +69,27 @@ export default function App() {
     try {
       const { email, password, isRegister } = credentials
 
-      // Rate limiting check
+      // BRUTE FORCE PROTECTION: Checks the rate limiter before processing credentials
       const remainingAttempts = loginLimiter.getRemainingAttempts(`login_${email}`)
       if (!loginLimiter.check(`login_${email}`)) {
         throw new Error(`Too many login attempts. Try again in 15 minutes. (${remainingAttempts} attempts left)`)
       }
 
       if (isRegister) {
-        // Register new user
+        // --- REGISTRATION WORKFLOW ---
         const existingUser = users.find(u => u.email === email)
         if (existingUser) {
           throw new Error('User already exists')
         }
 
-        // Validate password strength
+        // Enforce basic password complexity requirements
         if (password.length < 8) {
           throw new Error('Password must be at least 8 characters long')
         }
 
-        // Use selected role from registration form
         const role = credentials.role || 'officer'
         
-        // Hash password with improved PBKDF2
+        // SECURE HASHING: Uses PBKDF2 with 10k iterations instead of plaintext
         const hashedPassword = await hashPassword(password)
         
         const newUser = { 
@@ -84,11 +100,12 @@ export default function App() {
           createdAt: new Date().toISOString()
         }
         
+        // Persist the new record to the local registry
         const updatedUsers = [...users, newUser]
         setUsers(updatedUsers)
         localStorage.setItem('vigibyte_users', JSON.stringify(updatedUsers))
 
-        // Auto-login after registration
+        // AUTHENTICATION: Generate signed token for immediate session access
         const token = await generateToken(newUser.id, newUser.email, newUser.role)
         localStorage.setItem('vigibyte_token', token)
         localStorage.setItem('vigibyte_user', JSON.stringify({
@@ -99,14 +116,14 @@ export default function App() {
         
         setUser({ id: newUser.id, email: newUser.email, role: newUser.role })
         
-        // Log registration
+        // Audit trail for new account creation
         await auditLogger.log('user_registered', newUser.id, newUser.email, { role })
         
-        // Reset rate limiter on success
+        // Clear rate limiter tracking on successful entry
         loginLimiter.reset(`login_${email}`)
         
       } else {
-        // Login existing user
+        // --- LOGIN WORKFLOW ---
         const foundUser = users.find(u => u.email === email)
         
         if (!foundUser) {
@@ -114,13 +131,14 @@ export default function App() {
           throw new Error('Invalid email or password')
         }
 
-        // Compare passwords using improved method
+        // CRYPTOGRAPHIC COMPARISON: Verify input against the derived PBKDF2 hash
         const passwordMatch = await comparePasswords(password, foundUser.passwordHash)
         if (!passwordMatch) {
           await auditLogger.log('login_failed', foundUser.id, email, { reason: 'wrong_password' })
           throw new Error('Invalid email or password')
         }
 
+        // Successful validation - Token generation
         const token = await generateToken(foundUser.id, foundUser.email, foundUser.role)
         localStorage.setItem('vigibyte_token', token)
         localStorage.setItem('vigibyte_user', JSON.stringify({
@@ -131,10 +149,7 @@ export default function App() {
         
         setUser({ id: foundUser.id, email: foundUser.email, role: foundUser.role })
         
-        // Log successful login
         await auditLogger.log('login_success', foundUser.id, foundUser.email)
-        
-        // Reset rate limiter on success
         loginLimiter.reset(`login_${email}`)
       }
     } catch (err) {
@@ -145,18 +160,25 @@ export default function App() {
     }
   }
 
-  // Handle Logout
+  /**
+   * LOGOUT HANDLER
+   * Performs session termination, clears local storage, and updates the audit log.
+   */
   const handleLogout = async () => {
     if (user) {
       await auditLogger.log('logout', user.id, user.email)
     }
     
+    // Systematic removal of session data
     localStorage.removeItem('vigibyte_token')
     localStorage.removeItem('vigibyte_user')
     setUser(null)
     setAuthError('')
   }
 
+  // --- RENDERING LOGIC ---
+
+  // Display futuristic loading spinner during initial boot/auth check
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
@@ -170,6 +192,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#080a10] text-white">
+      {/* Conditional Rendering: 
+          - If no user session: Show AuthPanel (Secure Gatekeeper)
+          - If session exists: Show Dashboard (Central Command)
+      */}
       {!user ? (
         <AuthPanel onLogin={handleLogin} error={authError} />
       ) : (

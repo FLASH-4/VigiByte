@@ -1,1 +1,12 @@
+/**
+ * VIGIBYTE GLOBAL STYLE ENTRY
+ * Purpose: This is the main entry point for the application's styles.
+ * It imports the Tailwind CSS framework, which enables the "Utility-First" 
+ * design pattern used across the VigiByte dashboard and authentication panels.
+ */
+
 @import "tailwindcss";
+
+/* NOTE: Tailwind's base, components, and utilities are injected here during the build process.
+   Custom global overrides or @layer directives can be added below this import.
+*/
