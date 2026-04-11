@@ -1,34 +1,34 @@
 # --- VIGIBYTE AI ENGINE: DOCKER CONFIGURATION ---
-# Base Image: Using python:3.10-slim for a minimal OS footprint and high security.
+# Base Image: Using python:3.10-slim for a minimal footprint and reduced attack surface.
 FROM python:3.10-slim
 
-# SYSTEM DEPENDENCIES
-# Installing essential shared libraries for OpenCV and Image processing (libglib, libsm, etc.)
-# Using --no-install-recommends and cleaning up lists to keep the image lightweight.
+# SYSTEM-LEVEL DEPENDENCIES
+# libgl1 is added specifically for OpenCV/DeepFace graphics processing.
+# Using --no-install-recommends and cleaning apt-lists to ensure a lean production image.
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libsm6 \
     libxrender1 \
     libxext6 \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory within the container
+# Setting the working directory
 WORKDIR /app
 
-# DEPENDENCY INSTALLATION
-# Copying requirements first to leverage Docker layer caching for faster subsequent builds.
+# DEPENDENCY MANAGEMENT
+# Copying requirements first to utilize Docker Layer Caching (speeds up re-builds).
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# APPLICATION CODE
-# Copy the FastAPI application entry point into the container.
+# INJECTING SOURCE CODE
+# Copy the FastAPI application logic (Brain of VigiByte).
 COPY main.py .
 
-# NETWORK CONFIGURATION
-# VigiByte AI Backend listens on port 8001.
+# NETWORK MAPPING
+# Exposing port 8001 for high-speed AI inference requests.
 EXPOSE 8001
 
-# EXECUTION COMMAND
-# Starting the high-performance ASGI server (Uvicorn).
-# Binding to 0.0.0.0 to allow traffic from the VigiByte Frontend.
+# ENTRYPOINT
+# Running Uvicorn on 0.0.0.0 to enable communication within the Docker network.
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]

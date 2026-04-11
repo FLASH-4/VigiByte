@@ -1,199 +1,189 @@
+"""
+VIGIBYTE: AI RECOGNITION ENGINE (CORE BACKEND)
+Purpose: High-performance Python backend providing forensic-grade face recognition.
+AI Stack: 
+ - Framework: FastAPI (Asynchronous API)
+ - Detection Backend: RetinaFace (Optimal for non-frontal/angled faces)
+ - Recognition Model: Facenet512 (Generates high-dimensional 512-D embeddings)
+ - Similarity Metric: Cosine Similarity for vector comparison
+"""
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import face_recognition
+from deepface import DeepFace
 import numpy as np
 import base64
 import os
-from PIL import Image
-import dlib
 import io
 import logging
+from PIL import Image
 
-# --- LOGGING & HARDWARE CONFIGURATION ---
-# Initialize logging to track system behavior and errors.
+# Setup logging for system monitoring
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Check if CUDA (GPU) is available for dlib; determines if CNN or HOG should be preferred.
-USE_CNN = dlib.DLIB_USE_CUDA
+app = FastAPI(title="VigiByte Face Recognition API", version="2.0.0")
 
-app = FastAPI(title="VigiByte Face Recognition API", version="1.0.0")
-
-# --- MIDDLEWARE CONFIGURATION ---
-# Enabling CORS for cross-origin communication between React frontend and FastAPI.
+# Security: Enable Cross-Origin Resource Sharing for the React Frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Production Note: Restrict this to specific domain for security.
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- DATA MODELS (PYDANTIC) ---
-# Defining strict schemas for API request bodies.
-
-class EnrollRequest(BaseModel):
-    """Schema for adding a new subject to the database."""
-    criminal_id: str
-    name: str
-    image_base64: str  # Encoded image string from the client.
+# AI HYPERPARAMETERS
+# Facenet512 provides a 512-dimensional vector which is highly robust for large databases.
+MODEL_NAME = "Facenet512"
+DETECTOR = "retinaface" # State-of-the-art detector for surveillance environments
 
 class DetectRequest(BaseModel):
-    """Schema for real-time detection requests sent from the video feed."""
-    frame_base64: str           # The current video frame being analyzed.
-    criminals: list             # Registry of known suspects: [{ id, name, face_descriptor }]
-    threshold: float = 0.5     # Tolerance for matching (Lower = stricter).
+    frame_base64: str
+    criminals: list
+    threshold: float = 0.5
 
 class DescriptorRequest(BaseModel):
-    """Schema for direct vector extraction from a single image."""
     image_base64: str
 
-# --- HELPER FUNCTIONS ---
+# --- IMAGE PRE-PROCESSING HELPERS ---
 
-def decode_image(base64_str: str):
-    """
-    Decodes a Base64 string into a NumPy array for AI processing.
-    Handles data URI prefixes and performs RGB conversion.
-    """
-    try:
-        if "," in base64_str:
-            base64_str = base64_str.split(",")[1]
-        
-        img_bytes = base64.b64decode(base64_str)
-        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-        
-        # Explicit conversion to ensure memory is allocated correctly as a uint8 array.
-        return np.array(img, dtype=np.uint8)
-    except Exception as e:
-        logger.error(f"Image Decoding Error: {e}")
-        raise HTTPException(status_code=400, detail="Corrupted Image Data")
+def decode_to_pil(base64_str: str) -> Image.Image:
+    """Decodes incoming Base64 stream from React into a PIL image."""
+    if "," in base64_str:
+        base64_str = base64_str.split(",")[1]
+    img_bytes = base64.b64decode(base64_str)
+    return Image.open(io.BytesIO(img_bytes)).convert("RGB")
 
-def get_face_encodings(img_array: np.ndarray) -> list:
-    """
-    Extracts 128-dimensional face encodings.
-    Prioritizes the CNN model for better tilt and angle detection.
-    Falls back to HOG if no faces are found or hardware is limited.
-    """
-    # Logic: CNN is robust for surveillance; HOG is faster for CPU-bound tasks.
-    model_to_use = "cnn" if USE_CNN else "hog"
-    
-    # number_of_times_to_upsample=1 increases detection chance for smaller faces.
-    locations = face_recognition.face_locations(img_array, model=model_to_use, number_of_times_to_upsample=1)
-    
-    if not locations:
-        # Secondary attempt using the standard HOG model if the primary fails.
-        locations = face_recognition.face_locations(img_array, model="hog", number_of_times_to_upsample=1)
-    
-    if not locations:
-        return [], []
-    
-    # Generate the 128-float mathematical representation of the face.
-    encodings = face_recognition.face_encodings(img_array, locations)
-    return encodings, locations
+def pil_to_np(img: Image.Image) -> np.ndarray:
+    """Converts PIL object to NumPy array for deep learning inference."""
+    return np.array(img)
 
-# --- API ROUTES ---
+# --- SYSTEM ENDPOINTS ---
 
 @app.get("/health")
-async def health():
-    """System heartbeat endpoint to verify API and AI model status."""
-    print("🔔 Health check request received!")
-    return {"status": "ok", "model": "face_recognition (dlib CNN)"}
+def health():
+    """System health check and model status."""
+    return {"status": "ok", "model": f"DeepFace ({MODEL_NAME} + {DETECTOR})"}
 
 
 @app.post("/get-descriptor")
 def get_descriptor(req: DescriptorRequest):
     """
-    Utility to extract a face descriptor during subject enrollment.
-    This vector is stored in the database for future comparison.
+    BIOMETRIC ENROLLMENT
+    Extracts a facial embedding (128/512-D vector) for storage in Supabase.
+    This serves as the 'Digital Fingerprint' of the face.
     """
     try:
-        img = decode_image(req.image_base64)
-        encodings, locations = get_face_encodings(img)
+        img = pil_to_np(decode_to_pil(req.image_base64))
 
-        if not encodings:
+        # Perform feature extraction using Facenet
+        embeddings = DeepFace.represent(
+            img_path=img,
+            model_name=MODEL_NAME,
+            detector_backend=DETECTOR,
+            enforce_detection=True
+        )
+
+        if not embeddings:
             raise HTTPException(status_code=400, detail="No face detected in image")
-        
-        if len(encodings) > 1:
-            # Policy: Prevent enrollment if multiple faces are present to avoid data pollution.
-            raise HTTPException(status_code=400, detail=f"{len(encodings)} faces detected — please use a photo with only 1 person")
+
+        if len(embeddings) > 1:
+            raise HTTPException(status_code=400, detail=f"{len(embeddings)} faces detected — use photo with 1 person only")
 
         return {
             "success": True,
-            "descriptor": encodings[0].tolist(),  # Converting NumPy array to list for JSON response.
-            "face_count": len(encodings)
+            "descriptor": embeddings[0]["embedding"], # The mathematical representation of the face
+            "face_count": len(embeddings)
         }
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"get-descriptor error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail="No face detected or image error")
 
 
 @app.post("/detect")
 async def detect(req: DetectRequest):
     """
-    Main identification engine. Matches detected faces in a frame against the known registry.
-    Calculates confidence scores based on Euclidean distance.
+    REAL-TIME SURVEILLANCE INFERENCE
+    1. Detects all faces in the incoming video frame.
+    2. Compares each face against the provided criminal database using Cosine Similarity.
+    3. Returns matches with confidence scores and bounding box coordinates.
     """
     try:
-        img = decode_image(req.frame_base64)
-        encodings, locations = get_face_encodings(img)
+        img = pil_to_np(decode_to_pil(req.frame_base64))
 
-        # Early exit if no humans are found in the frame.
-        if not encodings:
+        # Detection Stage: Locate all faces in the frame
+        try:
+            detections = DeepFace.represent(
+                img_path=img,
+                model_name=MODEL_NAME,
+                detector_backend=DETECTOR,
+                enforce_detection=True
+            )
+        except Exception:
             return {"matches": [], "face_count": 0}
 
-        # Convert suspect registry lists into optimized NumPy arrays for fast matrix comparison.
-        known_encodings = []
+        if not detections:
+            return {"matches": [], "face_count": 0}
+
+        # Recognition Stage: Vectorized comparison logic
+        known_embeddings = []
         valid_criminals = []
-        
         for criminal in req.criminals:
             desc = criminal.get("face_descriptor")
             if not desc:
                 continue
-            known_encodings.append(np.array(desc, dtype=np.float64))
+            known_embeddings.append(np.array(desc, dtype=np.float64))
             valid_criminals.append(criminal)
 
-        if not known_encodings:
-            return {"matches": [], "face_count": len(encodings)}
+        if not known_embeddings:
+            return {"matches": [], "face_count": len(detections)}
 
         matches = []
-        img_height, img_width = img.shape[:2]
+        known_arr = np.array(known_embeddings)
 
-        # Iterating through every face found in the current frame.
-        for encoding, location in zip(encodings, locations):
-            # Calculate mathematical distance (Lower distance = Higher similarity).
-            distances = face_recognition.face_distance(known_encodings, encoding)
-            best_idx = int(np.argmin(distances))
-            best_distance = float(distances[best_idx])
+        for det in detections:
+            query = np.array(det["embedding"], dtype=np.float64)
 
-            # Filter results based on the provided threshold.
-            if best_distance <= req.threshold:
+            # MATHEMATICAL SCORING: Cosine Similarity
+            # Formula: (A dot B) / (||A|| * ||B||)
+            # Measures the angular distance between the face in the video vs. the database.
+            norms = np.linalg.norm(known_arr, axis=1) * np.linalg.norm(query)
+            norms = np.where(norms == 0, 1e-10, norms)
+            similarities = np.dot(known_arr, query) / norms
+
+            best_idx = int(np.argmax(similarities))
+            best_sim = float(similarities[best_idx])
+
+            # Validation: 0.5 is a highly reliable threshold for Facenet512
+            if best_sim >= req.threshold:
                 criminal = valid_criminals[best_idx]
-                # Mapping distance to a human-readable percentage score.
-                confidence = round((1 - best_distance) * 100)
+                confidence = round(best_sim * 100)
 
-                # Convert coordinates to a standardized bounding box format.
-                top, right, bottom, left = location
+                # Extract geometric data for frontend visualization
+                facial_area = det.get("facial_area", {})
+                box = {
+                    "x": facial_area.get("x", 0),
+                    "y": facial_area.get("y", 0),
+                    "width": facial_area.get("w", 100),
+                    "height": facial_area.get("h", 100)
+                }
+
                 matches.append({
                     "id": criminal["id"],
                     "name": criminal["name"],
                     "confidence": confidence,
-                    "distance": best_distance,
-                    "boundingBox": {
-                        "x": left,
-                        "y": top,
-                        "width": right - left,
-                        "height": bottom - top
-                    },
-                    # Merge all other metadata fields for frontend alert displays.
-                    **{k: v for k, v in criminal.items() if k not in ["face_descriptor"]}
+                    "boundingBox": box,
+                    **{k: v for k, v in criminal.items() if k != "face_descriptor"}
                 })
 
-        logger.info(f"Detected {len(encodings)} face(s), {len(matches)} match(es)")
-        return {"matches": matches, "face_count": len(encodings)}
+        logger.info(f"Analysis Complete: {len(detections)} face(s), {len(matches)} positive match(es)")
+        return {"matches": matches, "face_count": len(detections)}
 
     except Exception as e:
-        logger.error(f"detect error: {e}")
+        logger.error(f"Inference Engine Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
