@@ -2,12 +2,14 @@
 
 VigiByte is a real-time criminal identification system built for law enforcement. It uses live camera feeds and AI facial recognition to detect known criminals instantly, with a Python backend for production-grade detection of tilted and angled faces.
 
+🌐 **Live Demo:** [vigi-byte.vercel.app](https://vigi-byte.vercel.app)
+
 ---
 
 ## ✨ Features
 
 - 🎥 **Live Surveillance** — Webcam & IP camera support with real-time video feed
-- 🤖 **AI Face Recognition** — Python backend (dlib CNN) handles tilted, angled, and partial faces
+- 🤖 **AI Face Recognition** — Python backend (DeepFace + Facenet512 + RetinaFace) handles tilted, angled, and partial faces
 - 🗄️ **Criminal Database** — Add, search, and manage criminal records with photo enrollment
 - 🔔 **Instant Alerts** — Real-time threat notifications with confidence score and bounding box
 - 🔐 **Role-Based Access** — Admin, Officer, and Viewer roles with separate permissions
@@ -20,12 +22,12 @@ VigiByte is a real-time criminal identification system built for law enforcement
 ## 🏗️ Architecture
 
 ```
-Browser (React + Vite)
-    │
-    ├── Supabase (PostgreSQL) — criminal records, face descriptors, auth
-    │
-    └── Python Backend (FastAPI + dlib) — face detection & matching
-            └── CNN model — handles straight, tilted, angled faces
+Browser (React + Vite)  →  vigi-byte.vercel.app
+        │
+        ├── Supabase (PostgreSQL) — criminal records, face descriptors
+        │
+        └── Python Backend (FastAPI + DeepFace)  →  vigi-byte-api.onrender.com
+                └── Facenet512 + RetinaFace — handles straight, tilted, angled faces
 ```
 
 ---
@@ -35,11 +37,11 @@ Browser (React + Vite)
 ### Prerequisites
 - Node.js 18+
 - Python 3.11
-- A Supabase account (free)
+- Supabase account (free)
 
-### 1. Clone & Install Frontend
+### 1. Clone & Install
 ```bash
-git clone https://github.com/yourusername/VigiByte.git
+git clone https://github.com/FLASH-4/VigiByte.git
 cd VigiByte
 npm install
 ```
@@ -53,9 +55,9 @@ cp .env.example .env
 ### 3. Start Python Backend
 ```bash
 cd backend
-pip install -r requirements.txt        # First time only — takes ~5 min (dlib compiles)
+pip install -r requirements.txt
 & "C:\Program Files\Python311\python.exe" -m uvicorn main:app --reload --port 8001
-# On Mac/Linux: python3 -m uvicorn main:app --reload --port 8001
+# Mac/Linux: python3 -m uvicorn main:app --reload --port 8001
 ```
 
 ### 4. Start Frontend
@@ -85,10 +87,31 @@ VITE_BACKEND_URL=http://localhost:8001
 | `VITE_SUPABASE_URL` | ✅ | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | ✅ | Supabase public/anon key |
 | `VITE_JWT_SECRET` | ✅ | Secret for signing session tokens (min 32 chars) |
-| `VITE_BACKEND_URL` | ✅ | Python backend URL (local or Render) |
+| `VITE_BACKEND_URL` | ✅ | Python backend URL (local or deployed) |
 | `VITE_APP_NAME` | No | Display name (default: VigiByte) |
 
-Get Supabase keys from: [supabase.com](https://supabase.com) → Project Settings → API
+---
+
+## 🌐 Deployment
+
+| Service | Platform | URL |
+|---------|----------|-----|
+| Frontend | Vercel | [vigi-byte.vercel.app](https://vigi-byte.vercel.app) |
+| Backend | Render | [vigi-byte-api.onrender.com](https://vigi-byte-api.onrender.com) |
+| Database | Supabase | Cloud PostgreSQL |
+
+### Deploy Frontend (Vercel)
+1. Push to GitHub
+2. Import repo on [vercel.com](https://vercel.com)
+3. Set environment variables
+4. Deploy
+
+### Deploy Backend (Render)
+1. New Web Service on [render.com](https://render.com)
+2. Root Directory: `backend`, Environment: `Docker`
+3. Deploy
+
+> ⚠️ Render free tier spins down after inactivity — first request may take ~50 seconds to wake up.
 
 ---
 
@@ -99,7 +122,7 @@ Get Supabase keys from: [supabase.com](https://supabase.com) → Project Setting
 | Frontend | React 19 + Vite 8 |
 | Styling | Tailwind CSS v4 |
 | Database | Supabase (PostgreSQL + Storage) |
-| Face Detection | Python — face_recognition (dlib CNN) |
+| Face Detection | DeepFace (Facenet512 + RetinaFace) |
 | Browser Fallback | @vladmandic/face-api (TinyFaceDetector) |
 | Auth | Web Crypto API (PBKDF2 + HMAC-SHA256) |
 | Charts | Recharts |
@@ -135,12 +158,12 @@ VigiByte/
 │   └── services/
 │       └── browserAuth.js      # PBKDF2 auth + JWT session manager
 ├── backend/
-│   ├── main.py                 # FastAPI app — /detect, /get-descriptor
-│   ├── requirements.txt        # Python dependencies
-│   ├── Dockerfile              # Container config for deployment
+│   ├── main.py                 # FastAPI — /detect, /get-descriptor, /health
+│   ├── requirements.txt        # Python dependencies (DeepFace, FastAPI)
+│   ├── Dockerfile              # Container config for Render deployment
 │   └── render.yaml             # Render.com deployment config
 ├── public/
-│   └── models/                 # face-api.js browser model files
+│   └── models/                 # face-api.js browser model files (fallback)
 ├── .env.example                # Environment variable template
 └── README.md
 ```
@@ -155,16 +178,6 @@ VigiByte/
 - Audit logging via IndexedDB
 - Supabase Row Level Security (RLS) enabled
 - CSP headers configured in Vite
-
----
-
-## 🐳 Docker (Optional)
-
-```bash
-docker-compose up
-```
-
-> Includes optional local PostgreSQL. Main app uses Supabase cloud by default.
 
 ---
 
