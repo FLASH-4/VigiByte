@@ -33,4 +33,5 @@ dist-ssr
 
 # --- SECURITY & ENVIRONMENT ---
 # CRITICAL: Prevents accidental exposure of API keys (Supabase, Roboflow, JWT)
+
 .env
