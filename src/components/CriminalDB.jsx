@@ -211,6 +211,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
 
       // Step 2: Extract AI Facial Vector
       const backendAvailable = await checkBackend();
+      let descriptorArray = null; 
       if (backendAvailable) {
         // Preference: Use Python backend for feature extraction
         descriptorArray = await getFaceDescriptorFromBackend(optimizedBase64);
