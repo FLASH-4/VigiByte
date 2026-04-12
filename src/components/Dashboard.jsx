@@ -432,9 +432,10 @@ function GridNode({ camera, criminals, onUpdate }) {
 
     if (camera.type === 'webcam') {
       getStream(camera.id)
-        .then(stream => {
+        .then(async stream => {
           if (cancelled) return
           if (videoRef.current) videoRef.current.srcObject = stream
+          await new Promise(r => setTimeout(r, 5000))
 
           // Low-frequency pulse (12 seconds) to keep global states updated without heavy CPU usage
           scanInterval = setInterval(async () => {
@@ -448,7 +449,7 @@ function GridNode({ camera, criminals, onUpdate }) {
                 onUpdate(null, camera, 0, null, 0)
               }
             } catch (e) { }
-          }, 8000)
+          }, 15000)
         })
         .catch(err => console.error('GridNode stream error:', err))
     }
