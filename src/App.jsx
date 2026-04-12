@@ -193,7 +193,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#080a10] text-white">
+    <div className="min-h-screen bg-[#080a10] text-white w-full overflow-x-hidden">
       {/* Conditional Rendering: 
           - If no user session: Show AuthPanel (Secure Gatekeeper)
           - If session exists: Show Dashboard (Central Command)
