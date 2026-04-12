@@ -54,7 +54,7 @@ export async function loadModels() {
 export async function checkBackend() {
   try {
     // Ping the backend health endpoint with a 20-second timeout
-    const res = await fetch(`${BACKEND_URL}/health`, { signal: AbortSignal.timeout(20000) })
+    const res = await fetch(`${BACKEND_URL}/`, { signal: AbortSignal.timeout(5000) })
     return res.ok
   } catch {
     return false
