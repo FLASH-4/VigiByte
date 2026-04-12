@@ -94,8 +94,8 @@ export async function detectAllCriminals(videoElement, criminals) {
   try {
     // Capture current video frame using an off-screen canvas
     const canvas = document.createElement('canvas')
-    canvas.width = videoElement.videoWidth || 640
-    canvas.height = videoElement.videoHeight || 480
+    canvas.width = 640
+    canvas.height = 480
     const ctx = canvas.getContext('2d')
     ctx.drawImage(videoElement, 0, 0)
 
