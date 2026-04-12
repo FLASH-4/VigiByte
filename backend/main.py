@@ -35,7 +35,7 @@ app.add_middleware(
 # RESOURCE-EFFICIENT CONFIGURATION
 # Best balance of speed and accuracy for environments with < 512MB RAM.
 MODEL_NAME = "Facenet"
-DETECTOR = "opencv"
+DETECTOR = "ssd"
 
 class DetectRequest(BaseModel):
     frame_base64: str
