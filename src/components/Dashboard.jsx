@@ -101,7 +101,7 @@ export default function Dashboard({ user, onLogout }) {
         const det = { timestamp: now, camera: camera.name, location: camera.location, coordinates: camera.coordinates, confidence: confidence || match.confidence || 0 }
         
         if (index !== -1) {
-          if (now - prev[index].detections[prev[index].detections.length - 1].timestamp < 10000) return prev
+          if (now - prev[index].detections[prev[index].detections.length - 1].timestamp < 30000) return prev
           const updated = [...prev]; 
           updated[index] = { ...updated[index], lastSeen: now, detections: [...updated[index].detections, det] }; 
           return updated;
@@ -448,7 +448,7 @@ function GridNode({ camera, criminals, onUpdate }) {
                 onUpdate(null, camera, 0, null, 0)
               }
             } catch (e) { }
-          }, 12000)
+          }, 8000)
         })
         .catch(err => console.error('GridNode stream error:', err))
     }

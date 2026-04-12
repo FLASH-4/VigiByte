@@ -200,7 +200,7 @@ export default function CameraFeed({ activeCamera, onAlert, user, onDetectedCrim
         Object.keys(lastBoxRef.current).forEach(id => delete lastBoxRef.current[id]); // Clear old boxes
       }
 
-    }, 1500) // 500ms Interval: Balancing speed vs CPU load
+    }, 800) // 500ms Interval: Balancing speed vs CPU load
   }
 
   return (
