@@ -57,6 +57,10 @@ def decode_to_np(base64_str: str) -> np.ndarray:
 
 # --- SYSTEM ENDPOINTS ---
 
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "VigiByte API"}
+
 @app.get("/health")
 def health():
     """Returns the current operational status and active AI models."""

@@ -31,4 +31,4 @@ EXPOSE 8001
 
 # ENTRYPOINT
 # Running Uvicorn on 0.0.0.0 to enable communication within the Docker network.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860", "--root-path", "/"]
