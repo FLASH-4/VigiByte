@@ -9,7 +9,7 @@ VigiByte is a real-time criminal identification system built for law enforcement
 ## ✨ Features
 
 - 🎥 **Live Surveillance** — Webcam & IP camera support with real-time video feed
-- 🤖 **AI Face Recognition** — Python backend (DeepFace + Facenet512 + RetinaFace) handles tilted, angled, and partial faces
+- 🤖 **AI Face Recognition** — Python backend (DeepFace + Facenet + SSD) handles tilted, angled, and partial faces
 - 🗄️ **Criminal Database** — Add, search, and manage criminal records with photo enrollment
 - 🔔 **Instant Alerts** — Real-time threat notifications with confidence score and bounding box
 - 🔐 **Role-Based Access** — Admin, Officer, and Viewer roles with separate permissions
@@ -24,10 +24,10 @@ VigiByte is a real-time criminal identification system built for law enforcement
 ```
 Browser (React + Vite)  →  vigi-byte.vercel.app
         │
-        ├── Supabase (PostgreSQL) — criminal records, face descriptors
+        ├── Supabase (PostgreSQL) — criminal records, face descriptors, photo storage
         │
-        └── Python Backend (FastAPI + DeepFace)  →  vigi-byte-api.onrender.com
-                └── Facenet512 + RetinaFace — handles straight, tilted, angled faces
+        └── Python Backend (FastAPI + DeepFace)  →  flash-04-vigibyte-api.hf.space
+                └── Facenet + SSD — handles straight, tilted, angled faces
 ```
 
 ---
@@ -90,6 +90,8 @@ VITE_BACKEND_URL=http://localhost:8001
 | `VITE_BACKEND_URL` | ✅ | Python backend URL (local or deployed) |
 | `VITE_APP_NAME` | No | Display name (default: VigiByte) |
 
+> `DATABASE_URL` in `.env.example` is optional — only needed if running local PostgreSQL via Docker. Main app uses Supabase cloud.
+
 ---
 
 ## 🌐 Deployment
@@ -97,36 +99,37 @@ VITE_BACKEND_URL=http://localhost:8001
 | Service | Platform | URL |
 |---------|----------|-----|
 | Frontend | Vercel | [vigi-byte.vercel.app](https://vigi-byte.vercel.app) |
-| Backend | Render | [vigi-byte-api.onrender.com](https://vigi-byte-api.onrender.com) |
+| Backend | Hugging Face Spaces | [flash-04-vigibyte-api.hf.space](https://flash-04-vigibyte-api.hf.space) |
 | Database | Supabase | Cloud PostgreSQL |
 
 ### Deploy Frontend (Vercel)
 1. Push to GitHub
-2. Import repo on [vercel.com](https://vercel.com)
+2. Import repo on [vercel.com](https://vercel.com) → select **Vite** preset
 3. Set environment variables
 4. Deploy
 
-### Deploy Backend (Render)
-1. New Web Service on [render.com](https://render.com)
-2. Root Directory: `backend`, Environment: `Docker`
-3. Deploy
+### Deploy Backend (Hugging Face Spaces)
+1. New Space on [huggingface.co](https://huggingface.co) → SDK: Docker
+2. Upload `main.py`, `requirements.txt`, `Dockerfile`, `README.md`
+3. Space auto-builds and deploys
 
-> ⚠️ Render free tier spins down after inactivity — first request may take ~50 seconds to wake up.
+> ⚠️ Hugging Face free tier may have cold starts. Use [UptimeRobot](https://uptimerobot.com) to keep it awake (ping every 5 min).
 
 ---
 
 ## 🗃️ Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19 + Vite 8 |
-| Styling | Tailwind CSS v4 |
-| Database | Supabase (PostgreSQL + Storage) |
-| Face Detection | DeepFace (Facenet512 + RetinaFace) |
-| Browser Fallback | @vladmandic/face-api (TinyFaceDetector) |
-| Auth | Web Crypto API (PBKDF2 + HMAC-SHA256) |
-| Charts | Recharts |
-| Icons | Lucide React |
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| Frontend | React 19 + Vite 8 | Fast build, component-based |
+| Styling | Tailwind CSS v4 | Utility-first, no custom CSS |
+| Database | Supabase (PostgreSQL) | SQL, built-in storage, RLS, free |
+| Face Detection | DeepFace (Facenet + SSD) | Tilted face support, no compilation |
+| Browser Fallback | @vladmandic/face-api | Works offline when backend down |
+| Auth | Web Crypto API (PBKDF2 + HMAC) | Browser-native, no extra packages |
+| Backend | FastAPI (Python) | Fast, async, easy deploy |
+| Charts | Recharts | React-native charts |
+| Icons | Lucide React | Modern, consistent |
 
 ---
 
@@ -154,14 +157,15 @@ VigiByte/
 │   ├── lib/
 │   │   ├── faceRecognition.js  # Backend API bridge + browser fallback
 │   │   ├── supabase.js         # Supabase client
+│   │   ├── streamManager.js    # Camera stream lifecycle management
 │   │   └── detectionHistory.js # Detection event storage (IndexedDB)
 │   └── services/
 │       └── browserAuth.js      # PBKDF2 auth + JWT session manager
 ├── backend/
 │   ├── main.py                 # FastAPI — /detect, /get-descriptor, /health
-│   ├── requirements.txt        # Python dependencies (DeepFace, FastAPI)
-│   ├── Dockerfile              # Container config for Render deployment
-│   └── render.yaml             # Render.com deployment config
+│   ├── requirements.txt        # Python dependencies
+│   ├── Dockerfile              # Container config for HF Spaces
+│   └── render.yaml             # (Legacy) Render.com config
 ├── public/
 │   └── models/                 # face-api.js browser model files (fallback)
 ├── .env.example                # Environment variable template
@@ -172,12 +176,13 @@ VigiByte/
 
 ## 🔐 Security
 
-- Passwords hashed with **PBKDF2** (10,000 iterations, SHA-256)
+- Passwords hashed with **PBKDF2** (10,000 iterations, SHA-256) — browser-native
 - Sessions signed with **HMAC-SHA256** tokens
 - Rate limiting — 5 login attempts per 15 minutes
 - Audit logging via IndexedDB
 - Supabase Row Level Security (RLS) enabled
 - CSP headers configured in Vite
+- Camera stream released on logout
 
 ---
 
