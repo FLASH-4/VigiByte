@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { releaseStream } from './lib/streamManager'
 import Dashboard from './components/Dashboard'
 import AuthPanel from './components/AuthPanel'
 import { 
@@ -170,6 +171,7 @@ export default function App() {
     }
     
     // Systematic removal of session data
+    releaseStream('cam-1')
     localStorage.removeItem('vigibyte_token')
     localStorage.removeItem('vigibyte_user')
     setUser(null)
