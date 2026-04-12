@@ -27,7 +27,7 @@ export default defineConfig({
       'X-Content-Type-Options': 'nosniff', // Disables MIME-type sniffing for security
       'X-XSS-Protection': '1; mode=block', // Activates browser XSS filters
       // CSP: Whitelisting trusted sources for Supabase, Render Backend, and Roboflow AI
-      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://vigi-byte-api.onrender.com http://127.0.0.1:8001 https://detect.roboflow.com;"
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://flash-04-vigibyte-api.hf.space https://detect.roboflow.com;"
     }
   },
 
