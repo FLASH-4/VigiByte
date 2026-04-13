@@ -337,9 +337,9 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
              <div className="space-y-1.5"><label className="text-[9px] font-bold text-slate-500 uppercase">Full Name <span className="text-slate-600">(optional)</span></label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white" /></div>
              <div className="space-y-1.5"><label className="text-[9px] font-bold text-slate-500 uppercase">Age <span className="text-slate-600">(optional)</span></label><input type="number" value={form.age} onChange={e => setForm({...form, age: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white" /></div>
              <div className="space-y-1.5"><label className="text-[9px] font-bold text-slate-500 uppercase">Classification <span className="text-slate-600">(optional)</span></label><input value={form.crime} onChange={e => setForm({...form, crime: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white" /></div>
-             <div className="space-y-1.5"><label className="text-[9px] font-bold text-slate-500 uppercase">Danger Level</label><select value={form.danger_level} onChange={e => setForm({...form, danger_level: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white"><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></div>
-             <div className="col-span-2"><input type="file" onChange={(e) => { const f = e.target.files[0]; if(f){ setPhotoFile(f); setPreview(URL.createObjectURL(f)) } }} className="w-full text-[10px] text-slate-500" /></div>
-          </div>
+             <div className="space-y-1.5"><label className="text-[9px] font-bold text-slate-500 uppercase">Danger Level</label><select value={form.danger_level} onChange={e => setForm({...form, danger_level: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white appearance-none"><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></div>
+             <div className="col-span-1 sm:col-span-2"><input type="file" onChange={(e) => { const f = e.target.files[0]; if(f){ setPhotoFile(f); setPreview(URL.createObjectURL(f)) } }} className="w-full text-[10px] text-slate-500" /></div>
+          </div>  
           {preview && <img src={preview} className="w-20 h-20 rounded-xl border border-white/10 shadow-lg" />}
           {msg && <p className="text-[10px] font-bold uppercase text-blue-500">{msg}</p>}
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
@@ -359,7 +359,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
               <p className="text-xs font-bold text-white uppercase tracking-tight">{c.name}{c.age ? `, ${c.age}` : ''}</p>
               <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-1">{c.crime}</p>
             </div>
-            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+            <div className="flex items-center gap-2">
                 <button onClick={() => downloadRecordAsCSV(c)} className="p-2 text-slate-400 hover:text-emerald-500 bg-white/5 rounded-lg"><FileJson size={16} /></button>
                 {userRole === 'admin' && <button onClick={() => setDeleteTarget(c)} className="p-2 text-slate-400 hover:text-red-500 bg-white/5 rounded-lg"><Trash2 size={16} /></button>}
             </div>

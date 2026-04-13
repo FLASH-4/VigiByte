@@ -147,8 +147,8 @@ export default function Dashboard({ user, onLogout }) {
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">Network Command Center v6.0</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 sm:gap-6">
-          {user?.role === 'admin' && <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 border border-blue-400/20 whitespace-nowrap">+ Add New Node</button>}
+        <div className="flex items-center gap-2 sm:gap-6">
+          {user?.role === 'admin' && <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 sm:px-5 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 border border-blue-400/20 whitespace-nowrap"><span className="hidden sm:inline">+ Add New Node</span><span className="sm:hidden">+</span></button>}
           <div className="flex items-center gap-2 sm:gap-4 pl-3 sm:pl-6 border-l border-white/10">
             <div className="text-right hidden sm:block">
               <p className="text-[11px] font-bold text-white">{user?.email}</p>
@@ -175,7 +175,7 @@ export default function Dashboard({ user, onLogout }) {
         <h2 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-5 px-1 flex items-center gap-2">
           <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div> Node Network Grid
         </h2>
-        <div className="grid grid-cols-2 sm:gird-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-5">
           {cameras.map(cam => (
             <div key={cam.id} className="relative group">
               <button onClick={() => { setSelectedCamera(cam); setLocalNodeStats({totalDetections: 0, lastConf: 0}); setLastMatchOnNode(null); setDetectedCriminals([]); }} className={`w-full aspect-video rounded-2xl border-2 transition-all relative overflow-hidden bg-slate-900 ${selectedCamera?.id === cam.id ? 'border-blue-500 shadow-2xl scale-[1.02]' : 'border-white/5 hover:border-blue-500/30'}`}>
@@ -213,7 +213,7 @@ export default function Dashboard({ user, onLogout }) {
 
       {/* INSPECTOR CORE MODAL: Deep-dive view for specific nodes */}
       {selectedCamera && (
-        <div className="fixed insert-0 sm:inset-1 z-[100] flex justify-center p-0 sm:p-6 backdrop-blur-md bg-black/70 transition-all duration-300">
+        <div className="fixed inset-0 sm:inset-1 z-[100] flex justify-center p-0 sm:p-6 backdrop-blur-md bg-black/70 transition-all duration-300">
           <div className="bg-[#0c101f] w-full max-w-7xl rounded-2xl sm:rounded-[2.5rem] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             <div className="p-3 sm:p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
                 <div className="flex flex-col">
@@ -222,7 +222,7 @@ export default function Dashboard({ user, onLogout }) {
                 </div>
                 <button onClick={() => setSelectedCamera(null)} className="p-2.5 bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl transition-all border border-white/10"><X size={22}/></button>
             </div>
-            <div className="p-3 sm:p-6 lg:p-10 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-10 overflow--y-auto max-h[85vh]">
+            <div className="p-3 sm:p-6 lg:p-10 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-10 overflow--y-auto max-h-[85vh]">
                 <div className="lg:col-span-2">
                   <CameraFeed 
                     activeCamera={selectedCamera} 
