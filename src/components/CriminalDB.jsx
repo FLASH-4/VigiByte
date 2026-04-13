@@ -300,15 +300,15 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
       )}
 
       {/* --- UI TOOLBAR --- */}
-      <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 p-5 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white/[0.02] border border-white/5 p-4 sm:p-5 rounded-2xl gap-3">
         <div>
           <h2 className="text-sm font-bold text-white uppercase tracking-tight">Criminal Registry {userRole === 'viewer' && <span className="text-slate-500">(View-Only)</span>}</h2>
           <p className="text-[9px] text-slate-500 font-bold uppercase mt-1 tracking-widest">{criminals.length} Active Records</p>
         </div>
         <div className="flex gap-2">
           <button onClick={onRefresh} className="p-2.5 text-slate-400 hover:text-white"><RefreshCw size={16}/></button>
-          <button onClick={exportToCSV} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-200 text-[10px] font-bold uppercase rounded-xl border border-white/5 transition-all"><Download size={14}/> Full DB Export</button>
-          {userRole !== 'viewer' && <button onClick={() => setAdding(!adding)} className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-[10px] font-bold uppercase rounded-xl shadow-lg">+ New Entry</button>}
+          <button onClick={exportToCSV} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-slate-800 text-slate-200 text-[10px] font-bold uppercase rounded-xl border border-white/5 transition-all"><Download size={14}/> Full DB Export</button>
+          {userRole !== 'viewer' && <button onClick={() => setAdding(!adding)} className="flex items-center gap-2 px-3 sm:px-5 py-2 bg-blue-600 text-white text-[10px] font-bold uppercase rounded-xl shadow-lg">+ New Entry</button>}
         </div>
       </div>
 
@@ -333,7 +333,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
       {/* --- ENROLLMENT FORM --- */}
       {adding && userRole !== 'viewer' && (
         <div className="bg-[#0f121a] border border-white/10 rounded-2xl p-8 space-y-6 animate-in slide-in-from-top-4 duration-300">
-          <div className="grid grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
              <div className="space-y-1.5"><label className="text-[9px] font-bold text-slate-500 uppercase">Full Name <span className="text-slate-600">(optional)</span></label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white" /></div>
              <div className="space-y-1.5"><label className="text-[9px] font-bold text-slate-500 uppercase">Age <span className="text-slate-600">(optional)</span></label><input type="number" value={form.age} onChange={e => setForm({...form, age: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white" /></div>
              <div className="space-y-1.5"><label className="text-[9px] font-bold text-slate-500 uppercase">Classification <span className="text-slate-600">(optional)</span></label><input value={form.crime} onChange={e => setForm({...form, crime: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white" /></div>
@@ -342,7 +342,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
           </div>
           {preview && <img src={preview} className="w-20 h-20 rounded-xl border border-white/10 shadow-lg" />}
           {msg && <p className="text-[10px] font-bold uppercase text-blue-500">{msg}</p>}
-          <div className="flex gap-3 pt-4">
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
              <button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-600 text-white py-3 rounded-xl text-[10px] font-bold uppercase flex items-center justify-center gap-2"><Save size={14}/> {saving ? 'Processing...' : 'Save to Cloud'}</button>
              <button onClick={downloadFormAsCSV} className="flex-1 bg-slate-800 text-slate-200 border border-white/5 py-3 rounded-xl text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-2"><FileJson size={14} className="text-emerald-500" /> Download as CSV</button>
              <button onClick={() => setAdding(false)} className="px-8 border border-white/5 text-slate-500 py-3 rounded-xl text-[10px] font-bold uppercase">Cancel</button>

@@ -217,7 +217,7 @@ export default function CameraFeed({ activeCamera, onAlert, user, onDetectedCrim
         <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
 
         {/* STATUS BADGE: Top Left */}
-        <div className="absolute top-6 left-6 flex items-center gap-2 bg-slate-950/80 px-4 py-2 rounded-2xl border border-white/10 backdrop-blur-md">
+        <div className="absolute top-2 sm:top-6 left-2 sm:left-6 flex items-center gap-2 bg-slate-950/80 px-2 sm:px-4 py-1 sm:py-2 rounded-xl sm:rounded-2xl border border-white/10 backdrop-blur-md">
           <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_8px_#3b82f6]"></div>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300 font-sans">
             Neural Analysis Active
@@ -225,7 +225,7 @@ export default function CameraFeed({ activeCamera, onAlert, user, onDetectedCrim
         </div>
 
         {/* ANALYTICS HUD: Top Right */}
-        <div className="absolute top-6 right-6 flex gap-2">
+        <div className="absolute top-2 sm:top-6 right-2 sm:right-6 flex gap-1 sm:gap-2 flex-wrap justify-end max-w-[55%]">
           {/* Backend Health Metric */}
           <div className="bg-slate-950/80 px-3 py-2 rounded-xl border border-white/10 backdrop-blur-md">
             <div className="flex items-center gap-2">
@@ -258,7 +258,7 @@ export default function CameraFeed({ activeCamera, onAlert, user, onDetectedCrim
 
         {/* CRITICAL THREAT BANNER: Appears only when identification occurs */}
         {detectedCriminals.length > 0 && (
-          <div className="absolute bottom-6 left-6 right-6 bg-red-600/90 backdrop-blur-md px-6 py-3 rounded-2xl border-2 border-red-400 shadow-2xl animate-pulse">
+          <div className="absolute bottom-2 sm:bottom-6 left-2 sm:left-6 right-2 sm:right-6 bg-red-600/90 backdrop-blur-md px-3 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl border-2 border-red-400 shadow-2xl animate-pulse">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <AlertCircle size={20} className="text-white" />

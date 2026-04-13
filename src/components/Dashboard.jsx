@@ -136,10 +136,10 @@ export default function Dashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#080a10] text-slate-300 font-sans p-6 tracking-tight">
+    <div className="min-h-screen bg-[#080a10] text-slate-300 font-sans p-3 sm:p-6 tracking-tight overflow-x-hidden">
       
       {/* HEADER: Branding and User Session Info */}
-      <header className="flex items-center justify-between mb-8 border-b border-white/5 pb-6">
+      <header className="flex flex-wrap items-center justify-between mb-6 sm:mb-8 border-b border-white/5 pb-4 sm:pb-6 gap-3">
         <div className="flex items-center gap-4">
           <Shield className="text-blue-500" size={26} />
           <div>
@@ -147,10 +147,10 @@ export default function Dashboard({ user, onLogout }) {
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">Network Command Center v6.0</p>
           </div>
         </div>
-        <div className="flex items-center gap-6">
-          {user?.role === 'admin' && <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 border border-blue-400/20">+ Add New Node</button>}
-          <div className="flex items-center gap-4 pl-6 border-l border-white/10">
-            <div className="text-right">
+        <div className="flex items-center gap-3 sm:gap-6">
+          {user?.role === 'admin' && <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 border border-blue-400/20 whitespace-nowrap">+ Add New Node</button>}
+          <div className="flex items-center gap-2 sm:gap-4 pl-3 sm:pl-6 border-l border-white/10">
+            <div className="text-right hidden sm:block">
               <p className="text-[11px] font-bold text-white">{user?.email}</p>
               <p className="text-[9px] text-slate-400 uppercase tracking-widest mt-0.5">{user?.role === 'admin' ? '🔑 ADMIN' : user?.role === 'officer' ? '👮 OFFICER' : '👁️ VIEWER'}</p>
             </div>
@@ -175,7 +175,7 @@ export default function Dashboard({ user, onLogout }) {
         <h2 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-5 px-1 flex items-center gap-2">
           <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div> Node Network Grid
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-5">
+        <div className="grid grid-cols-2 sm:gird-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-5">
           {cameras.map(cam => (
             <div key={cam.id} className="relative group">
               <button onClick={() => { setSelectedCamera(cam); setLocalNodeStats({totalDetections: 0, lastConf: 0}); setLastMatchOnNode(null); setDetectedCriminals([]); }} className={`w-full aspect-video rounded-2xl border-2 transition-all relative overflow-hidden bg-slate-900 ${selectedCamera?.id === cam.id ? 'border-blue-500 shadow-2xl scale-[1.02]' : 'border-white/5 hover:border-blue-500/30'}`}>
@@ -213,16 +213,16 @@ export default function Dashboard({ user, onLogout }) {
 
       {/* INSPECTOR CORE MODAL: Deep-dive view for specific nodes */}
       {selectedCamera && (
-        <div className="fixed inset-1 z-[100] flex justify-center p-6 backdrop-blur-md bg-black/70 transition-all duration-300">
-          <div className="bg-[#0c101f] w-full max-w-7xl rounded-[2.5rem] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
+        <div className="fixed insert-0 sm:inset-1 z-[100] flex justify-center p-0 sm:p-6 backdrop-blur-md bg-black/70 transition-all duration-300">
+          <div className="bg-[#0c101f] w-full max-w-7xl rounded-2xl sm:rounded-[2.5rem] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="p-3 sm:p-6 border-b border-white/5 flex items-center justify-between bg-white/5">
                 <div className="flex flex-col">
                   <h2 className="text-sm font-bold text-white uppercase tracking-tight leading-none">Inspector Core: {selectedCamera.name}</h2>
                   <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest"><MapPin size={10} className="text-blue-500" /> Site: {selectedCamera.location} | {selectedCamera.coordinates}</div>
                 </div>
                 <button onClick={() => setSelectedCamera(null)} className="p-2.5 bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-500 rounded-xl transition-all border border-white/10"><X size={22}/></button>
             </div>
-            <div className="p-10 grid grid-cols-1 lg:grid-cols-3 gap-10 overflow-hidden">
+            <div className="p-3 sm:p-6 lg:p-10 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-10 overflow--y-auto max-h[85vh]">
                 <div className="lg:col-span-2">
                   <CameraFeed 
                     activeCamera={selectedCamera} 
@@ -400,7 +400,7 @@ function AddNodeModal({ onAdd, onClose }) {
 // Visual indicator card for Key Performance Indicators
 function KPICard({ icon, label, value, color }) {
   const themes = { blue: 'border-blue-500/10 bg-blue-500/5 text-blue-500', red: 'border-red-500/10 bg-red-500/5 text-red-500 shadow-[0_0_25px_rgba(239,68,68,0.05)]', green: 'border-emerald-500/10 bg-emerald-500/5 text-emerald-500', slate: 'border-white/5 bg-white/[0.02] text-slate-300' }
-  return ( <div className={`border rounded-[1.8rem] p-7 transition-all hover:translate-y-[-2px] ${themes[color]}`}><div className="flex items-center gap-3 mb-4 opacity-60 font-bold uppercase text-[10px] tracking-[0.1em]">{icon} {label}</div><p className="text-2xl font-bold tracking-tight">{value}</p></div> )
+  return ( <div className={`border rounded-[1.5rem] sm:rounded-[1.8rem] p-4 sm:p-7 transition-all hover:translate-y-[-2px] ${themes[color]}`}><div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4 opacity-60 font-bold uppercase text-[9px] sm:text-[10px] tracking-[0.1em]">{icon} {label}</div><p className="text-2xl font-bold tracking-tight">{value}</p></div> )
 }
 
 // Button component for switching between dashboard tabs
