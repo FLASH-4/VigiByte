@@ -247,7 +247,7 @@ export default function Dashboard({ user, onLogout }) {
         <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-lg flex items-center justify-center p-8 animate-in fade-in" onClick={() => setViewingImageUrl(null)}>
             <div className="bg-[#0c0f16] border border-white/10 rounded-[2.5rem] p-8 relative shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 <button onClick={() => setViewingImageUrl(null)} className="absolute top-4 right-4 bg-red-600 text-white p-2 rounded-full shadow-lg border-2 border-white hover:bg-red-500 active:scale-95 transition-all z-20"><X size={16} /></button>
-                <img src={viewingImageUrl} className="w-auto h-auto max-w-[80vw] max-h-[70vh] rounded-2xl object-contain border border-white/10 shadow-2xl" alt="Match Fullscreen" />
+                <img src={viewingImageUrl} className="w-full max-w-[85vw] max-h-[75vh] rounded-2xl object-contain border border-white/10 shadow-2xl" alt="Match Fullscreen" />
                 <div className="pt-6 flex justify-center">
                     <a href={viewingImageUrl} download={`criminal_snap_${Date.now()}.jpg`} target="_blank" className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-3 transition-all shadow-lg active:scale-95">
                         <Download size={14}/> Download Image
