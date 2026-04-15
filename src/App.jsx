@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { releaseAllStreams } from './lib/streamManager'
 import { supabase } from './lib/supabase'
+import { extractDomainFromEmail, getOrCreateOrganization, adminExistsForOrg } from './lib/organization'
+import { generateTOTPSecret, verifyTOTP, generateQRCodeURL } from './lib/totp'
 import Dashboard from './components/Dashboard'
 import AuthPanel from './components/AuthPanel'
 import {
@@ -54,10 +56,16 @@ const storage = {
  */
 export default function App() {
   // --- APPLICATION STATE ---
-  const [user, setUser] = useState(null)          // Stores current authenticated user metadata
-  const [loading, setLoading] = useState(true)    // Handles the global initial loading state
-  const [authError, setAuthError] = useState('')  // Captures and displays authentication failures
-  const [users, setUsers] = useState([])          // User registry from Supabase
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [authError, setAuthError] = useState('')
+  const [users, setUsers] = useState([])
+
+  // 2FA States
+  const [needsTOTP, setNeedsTOTP] = useState(false)
+  const [totpSecret, setTotpSecret] = useState(null)
+  const [qrCodeURL, setQrCodeURL] = useState(null)
+  const [pendingUser, setPendingUser] = useState(null)
 
   /**
    * SESSION RESTORATION (Auto-Login)
@@ -119,24 +127,27 @@ export default function App() {
   }
 
   /**
-   * AUTHENTICATION HANDLER
-   * Orchestrates both Registration and Login workflows.
-   * Includes rate limiting, password hashing (PBKDF2), and audit logging.
-   * All localStorage operations go through the safe storage wrapper to
-   * prevent silent failures on restrictive mobile browsers.
+   * AUTHENTICATION HANDLER with Organization + 2FA
    */
   const handleLogin = async (credentials) => {
     setAuthError('')
     setLoading(true)
 
     try {
-      const { email, password, isRegister } = credentials
+      const { email, password, isRegister, role, totpCode } = credentials
 
-      // BRUTE FORCE PROTECTION: Checks the rate limiter before processing credentials
+      // BRUTE FORCE PROTECTION
       const remainingAttempts = loginLimiter.getRemainingAttempts(`login_${email}`)
       if (!loginLimiter.check(`login_${email}`)) {
         throw new Error(`Too many login attempts. Try again in 15 minutes. (${remainingAttempts} attempts left)`)
       }
+
+      // Extract organization from email domain
+      const domain = extractDomainFromEmail(email)
+      if (!domain) throw new Error('Invalid email format')
+
+      // Get or create organization
+      const org = await getOrCreateOrganization(domain)
 
       if (isRegister) {
         // --- REGISTRATION WORKFLOW ---
@@ -145,14 +156,19 @@ export default function App() {
           throw new Error('User already exists')
         }
 
-        // Enforce basic password complexity requirements
+        // Check if trying to register as ADMIN
+        if (role === 'admin') {
+          const adminExists = await adminExistsForOrg(org.id)
+          if (adminExists) {
+            throw new Error('An admin already exists for this organization. Contact your org admin.')
+          }
+        }
+
+        // Password validation
         if (password.length < 8) {
           throw new Error('Password must be at least 8 characters long')
         }
 
-        const role = credentials.role || 'officer'
-
-        // SECURE HASHING: Uses PBKDF2 with 10k iterations instead of plaintext
         const hashedPassword = await hashPassword(password)
 
         const newUser = {
@@ -160,34 +176,56 @@ export default function App() {
           password_hash: hashedPassword,
           role,
           id: 'user_' + Date.now(),
+          organization_id: org.id,
           created_at: new Date().toISOString()
         }
 
-        // Persist to Supabase
+        // For admin: Generate TOTP secret for 2FA
+        if (role === 'admin') {
+          const secret = generateTOTPSecret()
+          newUser.totp_secret = secret
+          newUser.totp_enabled = true
+
+          // Save user first
+          const { error: insertError } = await supabase.from('users').insert([newUser])
+          if (insertError) throw new Error('Failed to register user: ' + insertError.message)
+
+          // Set organization admin
+          await supabase.from('organizations').update({ admin_id: newUser.id }).eq('id', org.id)
+
+          // Show QR code for 2FA setup
+          const qrUrl = generateQRCodeURL(secret, email, 'VigiByte')
+          setTotpSecret(secret)
+          setQrCodeURL(qrUrl)
+          setNeedsTOTP(true)
+          setPendingUser(newUser)
+
+          setLoading(false)
+          return // Wait for user to confirm 2FA setup
+        }
+
+        // For non-admin: register normally
         const { error: insertError } = await supabase.from('users').insert([newUser])
         if (insertError) throw new Error('Failed to register user: ' + insertError.message)
 
-        // Update local state
         const updatedUsers = [...users, newUser]
         setUsers(updatedUsers)
 
-        // AUTHENTICATION: Generate signed token for immediate session access
+        // Generate token and login
         const token = await generateToken(newUser.id, newUser.email, newUser.role)
         storage.set('vigibyte_token', token)
         storage.set('vigibyte_user', JSON.stringify({
           id: newUser.id,
           email: newUser.email,
-          role: newUser.role
+          role: newUser.role,
+          organization_id: org.id
         }))
 
-        setUser({ id: newUser.id, email: newUser.email, role: newUser.role })
+        setUser({ id: newUser.id, email: newUser.email, role: newUser.role, organization_id: org.id })
 
-        // Audit trail for new account creation
-        await auditLogger.log('user_registered', newUser.id, newUser.email, { role })
-
-        // Clear rate limiter tracking on successful entry
+        await auditLogger.log('user_registered', newUser.id, newUser.email, { role, organization: domain })
         loginLimiter.reset(`login_${email}`)
-        
+
       } else {
         // --- LOGIN WORKFLOW ---
         const foundUser = users.find(u => u.email === email)
@@ -197,23 +235,44 @@ export default function App() {
           throw new Error('Invalid email or password')
         }
 
-        // CRYPTOGRAPHIC COMPARISON: Verify input against the derived PBKDF2 hash
+        // Verify password
         const passwordMatch = await comparePasswords(password, foundUser.password_hash)
         if (!passwordMatch) {
           await auditLogger.log('login_failed', foundUser.id, email, { reason: 'wrong_password' })
           throw new Error('Invalid email or password')
         }
 
-        // Successful validation — generate and persist the new session token
+        // If admin with 2FA enabled, verify TOTP code
+        if (foundUser.role === 'admin' && foundUser.totp_enabled) {
+          if (!totpCode) {
+            setPendingUser(foundUser)
+            setNeedsTOTP(false) // Set to false for verification, not setup
+            setLoading(false)
+            return // Request TOTP code from user
+          }
+
+          const totpValid = await verifyTOTP(foundUser.totp_secret, totpCode)
+          if (!totpValid) {
+            throw new Error('Invalid 2FA code')
+          }
+        }
+
+        // Successful login
         const token = await generateToken(foundUser.id, foundUser.email, foundUser.role)
         storage.set('vigibyte_token', token)
         storage.set('vigibyte_user', JSON.stringify({
           id: foundUser.id,
           email: foundUser.email,
-          role: foundUser.role
+          role: foundUser.role,
+          organization_id: foundUser.organization_id
         }))
 
-        setUser({ id: foundUser.id, email: foundUser.email, role: foundUser.role })
+        setUser({
+          id: foundUser.id,
+          email: foundUser.email,
+          role: foundUser.role,
+          organization_id: foundUser.organization_id
+        })
 
         await auditLogger.log('login_success', foundUser.id, foundUser.email)
         loginLimiter.reset(`login_${email}`)
@@ -223,6 +282,92 @@ export default function App() {
       console.error('Authentication error:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Handle TOTP confirmation for admin 2FA setup
+  const handleTOTPSetup = async (totpCode) => {
+    try {
+      if (!totpCode || totpCode.length !== 6) {
+        throw new Error('Valid 6-digit code required')
+      }
+
+      // Verify the code works with the secret
+      const isValid = await verifyTOTP(totpSecret, totpCode)
+      if (!isValid) {
+        throw new Error('Invalid 2FA code. Please try again.')
+      }
+
+      // Code is valid, complete admin login
+      const token = await generateToken(pendingUser.id, pendingUser.email, pendingUser.role)
+      storage.set('vigibyte_token', token)
+      storage.set('vigibyte_user', JSON.stringify({
+        id: pendingUser.id,
+        email: pendingUser.email,
+        role: pendingUser.role,
+        organization_id: pendingUser.organization_id
+      }))
+
+      setUser({
+        id: pendingUser.id,
+        email: pendingUser.email,
+        role: pendingUser.role,
+        organization_id: pendingUser.organization_id
+      })
+
+      // Update users list
+      setUsers(prev => [...prev, pendingUser])
+
+      setNeedsTOTP(false)
+      setTotpSecret(null)
+      setQrCodeURL(null)
+      setPendingUser(null)
+
+      await auditLogger.log('2fa_setup_complete', pendingUser.id, pendingUser.email)
+      loginLimiter.reset(`login_${pendingUser.email}`)
+    } catch (err) {
+      setAuthError(err.message)
+      console.error('TOTP setup error:', err)
+    }
+  }
+
+  // Handle TOTP verification for admin login
+  const handleTOTPVerification = async (totpCode) => {
+    try {
+      if (!totpCode || totpCode.length !== 6) {
+        throw new Error('Valid 6-digit code required')
+      }
+
+      const isValid = await verifyTOTP(pendingUser.totp_secret, totpCode)
+      if (!isValid) {
+        throw new Error('Invalid 2FA code. Please try again.')
+      }
+
+      // Code is valid, complete login
+      const token = await generateToken(pendingUser.id, pendingUser.email, pendingUser.role)
+      storage.set('vigibyte_token', token)
+      storage.set('vigibyte_user', JSON.stringify({
+        id: pendingUser.id,
+        email: pendingUser.email,
+        role: pendingUser.role,
+        organization_id: pendingUser.organization_id
+      }))
+
+      setUser({
+        id: pendingUser.id,
+        email: pendingUser.email,
+        role: pendingUser.role,
+        organization_id: pendingUser.organization_id
+      })
+
+      setNeedsTOTP(false)
+      setPendingUser(null)
+
+      await auditLogger.log('login_success', pendingUser.id, pendingUser.email)
+      loginLimiter.reset(`login_${pendingUser.email}`)
+    } catch (err) {
+      setAuthError(err.message)
+      console.error('TOTP verification error:', err)
     }
   }
 
@@ -247,7 +392,7 @@ export default function App() {
 
   // --- RENDERING LOGIC ---
 
-  // Display futuristic loading spinner during initial boot/auth check
+  // Display loading spinner
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
@@ -261,12 +406,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#080a10] text-white w-full overflow-x-hidden">
-      {/* Conditional Rendering: 
-          - If no user session: Show AuthPanel (Secure Gatekeeper)
-          - If session exists: Show Dashboard (Central Command)
-      */}
       {!user ? (
-        <AuthPanel onLogin={handleLogin} error={authError} />
+        <AuthPanel
+          onLogin={handleLogin}
+          error={authError}
+          needsTOTP={needsTOTP}
+          qrCodeURL={qrCodeURL}
+          onTOTPSetup={handleTOTPSetup}
+          onTOTPVerification={handleTOTPVerification}
+          pendingUser={pendingUser}
+        />
       ) : (
         <Dashboard user={user} onLogout={handleLogout} />
       )}

@@ -1,37 +1,31 @@
 import { useState } from 'react'
-import { Lock, AlertCircle, Eye, EyeOff, Shield, LogOut } from 'lucide-react'
+import { Lock, AlertCircle, Eye, EyeOff, Shield, LogOut, Copy, Check } from 'lucide-react'
 
 /**
- * AuthPanel Component
- * Purpose: Handles User Authentication (Login/Register) and Role Selection.
- * Features: Password validation, show/hide password toggle, and Session Management UI.
+ * AuthPanel Component with 2FA Support
  */
-export default function AuthPanel({ onLogin, onLogout, user, error: externalError }) {
-  const [isLogin, setIsLogin] = useState(true) // Toggle between Login and Registration modes
+export default function AuthPanel({ onLogin, onLogout, user, error: externalError, needsTOTP, qrCodeURL, onTOTPSetup, onTOTPVerification, pendingUser }) {
+  const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [selectedRole, setSelectedRole] = useState('officer') // Default role for new users
+  const [selectedRole, setSelectedRole] = useState('officer')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('') // Local validation error state
+  const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [totpCode, setTotpCode] = useState('')
+  const [copied, setCopied] = useState(false)
 
-  // Standard Regex for Email Validation
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return re.test(email)
   }
 
-  // Security Policy: Minimum 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
   const validatePassword = (password) => {
     const re = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
     return re.test(password)
   }
 
-  /**
-   * Form Submission Handler
-   * Validates inputs before passing credentials to the parent authentication function.
-   */
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -39,43 +33,193 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
 
     try {
       if (!email || !password) {
-        throw new Error('Email and password required') // Basic check
+        throw new Error('Email and password required')
       }
 
       if (!validateEmail(email)) {
-        throw new Error('Invalid email format') // Syntax check
+        throw new Error('Invalid email format')
       }
 
       if (isLogin) {
-        // Handle Login Logic
         if (password.length < 8) {
-          throw new Error('Invalid credentials') // Minimal length check for security
+          throw new Error('Invalid credentials')
         }
         onLogin({ email, password })
       } else {
-        // Handle Registration Logic
         if (password !== confirmPassword) {
-          throw new Error('Passwords do not match') // UI-level validation
+          throw new Error('Passwords do not match')
         }
         if (!validatePassword(password)) {
           throw new Error('Password must be 8+ chars with uppercase, lowercase, number, special char')
         }
-        // Send registration data including selected Role-Based Access Control (RBAC)
         onLogin({ email, password, isRegister: true, role: selectedRole })
       }
     } catch (err) {
-      setError(err.message) // Display error to the user
+      setError(err.message)
     } finally {
       setLoading(false)
     }
   }
 
+  const handleTOTPSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      if (!totpCode || totpCode.length !== 6 || isNaN(totpCode)) {
+        throw new Error('Please enter valid 6-digit code')
+      }
+
+      if (needsTOTP === true) {
+        // Setup mode - verifying the code works
+        onTOTPSetup(totpCode)
+      } else {
+        // Verification mode - logging in
+        onTOTPVerification(totpCode)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(qrCodeURL)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  // --- 2FA SETUP VIEW ---
+  if (needsTOTP === true && qrCodeURL && pendingUser) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4">
+        <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-6 sm:p-8 max-w-md w-full shadow-2xl animate-in max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center gap-3 mb-6">
+            <Shield className="text-yellow-500" size={28} />
+            <h1 className="text-xl sm:text-2xl font-bold text-white">Setup 2FA Security</h1>
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+              <p className="text-sm text-yellow-100">
+                📱 Scan this QR code with Google Authenticator, Authy, or Microsoft Authenticator
+              </p>
+            </div>
+
+            {/* QR Code Display */}
+            <div className="flex justify-center bg-white p-4 rounded-xl">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeURL)}`}
+                alt="2FA QR Code"
+                className="w-48 h-48"
+              />
+            </div>
+
+            <form onSubmit={handleTOTPSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">
+                  Enter 6-Digit Code from App
+                </label>
+                <input
+                  type="text"
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  maxLength="6"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all text-center text-2xl tracking-widest"
+                  disabled={loading}
+                  inputMode="numeric"
+                />
+              </div>
+
+              {(error || externalError) && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex gap-2">
+                  <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-300">{error || externalError}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || totpCode.length !== 6}
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white py-3 rounded-xl font-bold uppercase text-sm transition-all"
+              >
+                {loading ? 'Verifying...' : 'Verify & Complete Setup'}
+              </button>
+            </form>
+
+            <p className="text-xs text-slate-400 text-center">
+              ✅ After verification, you'll be logged in to your account
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // --- 2FA VERIFICATION VIEW (Login) ---
+  if (needsTOTP === false && pendingUser) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4">
+        <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-6 sm:p-8 max-w-md w-full shadow-2xl animate-in">
+          <div className="flex items-center gap-3 mb-6">
+            <Lock className="text-green-500" size={28} />
+            <h1 className="text-xl sm:text-2xl font-bold text-white">2FA Verification</h1>
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+              <p className="text-sm text-blue-100">
+                🔐 Enter the 6-digit code from your authenticator app to complete login
+              </p>
+            </div>
+
+            <form onSubmit={handleTOTPSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">
+                  Authentication Code
+                </label>
+                <input
+                  type="text"
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  maxLength="6"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all text-center text-2xl tracking-widest"
+                  disabled={loading}
+                  inputMode="numeric"
+                  autoFocus
+                />
+              </div>
+
+              {(error || externalError) && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex gap-2">
+                  <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-300">{error || externalError}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || totpCode.length !== 6}
+                className="w-full bg-green-600 hover:bg-green-500 disabled:bg-green-800 text-white py-3 rounded-xl font-bold uppercase text-sm transition-all"
+              >
+                {loading ? 'Verifying...' : 'Verify & Login'}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // --- LOGGED-IN VIEW ---
-  // Displayed when the user is successfully authenticated via Supabase/Backend
   if (user) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4">
-        <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-8 max-w-md w-full shadow-2xl">
+        <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-6 sm:p-8 max-w-md w-full shadow-2xl">
           <div className="flex items-center gap-3 mb-6">
             <Shield className="text-green-500" size={24} />
             <h2 className="text-xl font-bold text-white">Welcome Back</h2>
@@ -109,14 +253,13 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
   // --- AUTHENTICATION FORM VIEW ---
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4">
-      <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-8 max-w-md w-full shadow-2xl animate-in">
+      <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-6 sm:p-8 max-w-md w-full shadow-2xl animate-in max-h-[90vh] overflow-y-auto">
         <div className="flex items-center gap-3 mb-8">
           <Lock className="text-blue-500" size={28} />
           <h1 className="text-2xl font-bold text-white">VigiByte</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Email Input Field */}
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">
               Email Address
@@ -125,13 +268,12 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="officer@vigibyte.com"
+              placeholder="officer@company.com"
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
               disabled={loading}
             />
           </div>
 
-          {/* Password Input with Visibility Toggle */}
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">
               Password
@@ -156,7 +298,6 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             </div>
           </div>
 
-          {/* Confirm Password (Visible only during Registration) */}
           {!isLogin && (
             <div>
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">
@@ -173,7 +314,6 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             </div>
           )}
 
-          {/* Role-Based Access Control (RBAC) Selector */}
           {!isLogin && (
             <div>
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">
@@ -193,7 +333,6 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             </div>
           )}
 
-          {/* Unified Error Handling Display (Local + Backend) */}
           {(error || externalError) && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex gap-2">
               <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
@@ -201,7 +340,6 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             </div>
           )}
 
-          {/* Dynamic Button Text based on Auth State */}
           <button
             type="submit"
             disabled={loading}
@@ -210,7 +348,6 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
             {loading ? 'Processing...' : isLogin ? 'Login' : 'Register'}
           </button>
 
-          {/* Toggle between Login and Registration Mode */}
           <p className="text-center text-xs text-slate-400">
             {isLogin ? "Don't have an account? " : 'Already have an account? '}
             <button
@@ -230,15 +367,14 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
           </p>
         </form>
 
-        {/* Security Feature Highlights for UI/Presentation */}
         <div className="mt-8 pt-6 border-t border-white/10">
           <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-3">🔒 Security Features</p>
           <ul className="space-y-1.5 text-[10px] text-slate-400">
-            <li>✅ End-to-end encryption for all data</li>
+            <li>✅ Organization-based data sharing (@domain)</li>
+            <li>✅ Admin 2FA (Google Authenticator)</li>
             <li>✅ Role-based access control (RBAC)</li>
             <li>✅ Activity logging & audit trail</li>
-            <li>✅ Session timeout protection</li>
-            <li>✅ Password hashing with PBKDF2 (Web Crypto API)</li>
+            <li>✅ Password hashing with PBKDF2</li>
           </ul>
         </div>
       </div>
