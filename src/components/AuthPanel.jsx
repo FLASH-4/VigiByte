@@ -15,12 +15,13 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
   const [showPassword, setShowPassword] = useState(false)
   const [totpCode, setTotpCode] = useState('')
   const [copied, setCopied] = useState(false)
+  const [showRejectionModal, setShowRejectionModal] = useState(false)
 
-  // Check if user was rejected and should see register form
+  // Check if user was rejected and should see rejection modal
   useEffect(() => {
     const showRegister = localStorage.getItem('vigibyte_show_register');
     if (showRegister === 'true') {
-      setIsLogin(false);
+      setShowRejectionModal(true);
       localStorage.removeItem('vigibyte_show_register');
     }
   }, [])
@@ -273,6 +274,57 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
               className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold uppercase text-sm transition-all flex items-center justify-center gap-2"
             >
               <LogOut size={16} /> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // --- REJECTION MODAL VIEW ---
+  if (showRejectionModal) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4 overflow-hidden">
+        <div className="bg-[#0c101f] rounded-3xl border border-red-500/30 p-6 sm:p-8 max-w-md w-full shadow-2xl animate-in bg-gradient-to-br from-red-500/5 to-red-900/10">
+          <div className="flex items-center gap-3 mb-6">
+            <AlertCircle className="text-red-500" size={32} />
+            <h1 className="text-2xl font-bold text-white">Application Rejected</h1>
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+              <p className="text-sm text-red-200">
+                Your officer application has been rejected by the administrator. You can submit a new application by registering again.
+              </p>
+            </div>
+
+            <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-4">
+              <p className="text-xs text-slate-400 uppercase tracking-widest mb-2">What happens next?</p>
+              <ul className="text-sm text-slate-300 space-y-2">
+                <li>✓ Fill out a fresh registration form</li>
+                <li>✓ Choose your role and organization</li>
+                <li>✓ Wait for admin approval</li>
+              </ul>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowRejectionModal(false);
+                setIsLogin(false);
+              }}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold uppercase text-sm transition-all"
+            >
+              Register Again
+            </button>
+
+            <button
+              onClick={() => {
+                setShowRejectionModal(false);
+                setIsLogin(true);
+              }}
+              className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold uppercase text-sm transition-all"
+            >
+              Back to Login
             </button>
           </div>
         </div>
