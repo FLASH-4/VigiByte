@@ -130,10 +130,9 @@ export default function Dashboard({ user, onLogout }) {
         }, (payload) => {
           console.log('👮 Approval status changed:', payload.eventType);
           if (payload.eventType === 'INSERT') {
-            // Officer approved
-            setIsApproved(true);
-            loadCameras();
-            loadCriminals();
+            // Officer approved - refresh page to load data
+            console.log('✅ APPROVAL DETECTED - Refreshing...');
+            window.location.reload();
           } else if (payload.eventType === 'DELETE') {
             // Officer revoked - set flag to show register form
             console.log('🔴 REVOCATION DETECTED - Redirecting to register');
