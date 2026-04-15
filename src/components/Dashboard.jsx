@@ -349,37 +349,39 @@ export default function Dashboard({ user, onLogout }) {
       const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', officerId).eq('organization_id', user?.organization_id);
       const isPending = !approved || approved.length === 0;
 
-      // If pending, delete their user account entirely
       if (isPending) {
         console.log('Rejecting pending officer:', officerId);
-        // Use regular supabase (admin) instead of scoped for deletion
-        const { error: deleteError } = await supabase.from('users').delete().eq('id', officerId);
+
+        // Immediately remove from UI first
+        setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
+
+        // Delete from database with better error handling
+        const { data, error: deleteError } = await supabase
+          .from('users')
+          .delete()
+          .eq('id', officerId)
+          .select();
+
         if (deleteError) {
           console.error('Delete error:', deleteError);
-          throw deleteError;
+          // Restore UI if deletion failed
+          await loadOfficers();
+          return;
         }
-        console.log('Officer deleted successfully from database');
-        // Remove from pending list immediately in UI
-        setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
+
+        console.log('Officer deleted from database:', data);
       } else {
-        // If approved, just remove approval
+        // If approved, remove approval
         console.log('Revoking approved officer:', officerId);
-        const { error } = await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId).eq('organization_id', user?.organization_id);
-        if (error) {
-          console.error('Revoke error:', error);
-          throw error;
+        const { error: revokeError } = await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId).eq('organization_id', user?.organization_id);
+        if (revokeError) {
+          console.error('Revoke error:', revokeError);
+          return;
         }
-        console.log('Officer revoked successfully');
-        // Remove from approved list immediately in UI
         setApprovedOfficers(prev => prev.filter(o => o.id !== officerId));
       }
-
-      // Force reload officers from database
-      setTimeout(async () => {
-        await loadOfficers();
-      }, 100);
     } catch (err) {
-      console.error('Error removing officer:', err);
+      console.error('Error:', err);
     }
   }
 
@@ -501,7 +503,7 @@ export default function Dashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#080a10] text-slate-300 font-sans p-3 sm:p-6 tracking-tight overflow-x-hidden">
+    <div className="min-h-screen bg-[#080a10] text-slate-300 font-sans p-3 sm:p-6 tracking-tight overflow-x-hidden overflow-y-auto scrollbar-hide">
       
       {/* HEADER: Branding and User Session Info */}
       <header className="flex flex-wrap items-center justify-between mb-6 sm:mb-8 border-b border-white/5 pb-4 sm:pb-6 gap-2 sm:gap-3">
