@@ -5,7 +5,7 @@ import { loadModels, detectAllCriminals, checkBackend } from '../lib/faceRecogni
 import CameraFeed from './CameraFeed'
 import AlertPanel from './AlertPanel'
 import CriminalDB from './CriminalDB'
-import { getStream, releaseStream } from '../lib/streamManager'
+import { getStream, releaseStream, releaseAllStreams } from '../lib/streamManager'
 import { supabase, createScopedClient } from '../lib/supabase'
 
 /**
@@ -48,14 +48,8 @@ export default function Dashboard({ user, onLogout }) {
   // Cleanup camera when revoked
   useEffect(() => {
     if (user?.role !== 'admin' && !isApproved) {
-      console.log('Revoking access - stopping camera stream');
-      if (selectedCamera) {
-        try {
-          releaseStream(selectedCamera.id);
-        } catch (err) {
-          console.error('Error releasing stream on revoke:', err);
-        }
-      }
+      console.log('Revoking access - stopping all camera streams');
+      releaseAllStreams(); // Stop ALL active streams
       setSelectedCamera(null);
       setCameras([]);
       setCriminals([]);

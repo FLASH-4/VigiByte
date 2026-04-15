@@ -86,6 +86,13 @@ export default function CameraFeed({ activeCamera, onAlert, user, onDetectedCrim
     return () => {
       cancelled = true;
       clearInterval(intervalRef.current); // Stop the loop when component is destroyed
+      // Stop video playback and clear stream
+      if (videoRef.current) {
+        if (videoRef.current.srcObject) {
+          videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+          videoRef.current.srcObject = null;
+        }
+      }
       setDetectedCriminals([]);
     }
   }, [activeCamera?.id])
