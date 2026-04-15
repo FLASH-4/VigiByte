@@ -14,11 +14,10 @@ export function extractDomainFromEmail(email) {
 /**
  * Get or create organization by domain
  * Returns organization with id, domain, admin_id
- * Uses Edge Function to bypass RLS during registration
  */
 export async function getOrCreateOrganization(domain) {
   try {
-    // First try to fetch existing org from client (this should work if user has access)
+    // Try to fetch existing org
     const { data: existing, error: fetchError } = await supabase
       .from('organizations')
       .select('*')
@@ -29,25 +28,16 @@ export async function getOrCreateOrganization(domain) {
       return existing
     }
 
-    // If not found, use Edge Function to create it (bypasses RLS with service role)
+    // Create new organization
     if (fetchError?.code === 'PGRST116') {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-organization`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ domain })
-        }
-      )
+      // Not found, create it
+      const { data: newOrg, error: createError } = await supabase
+        .from('organizations')
+        .insert([{ domain }])
+        .select()
+        .single()
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to create organization')
-      }
-
-      const newOrg = await response.json()
+      if (createError) throw createError
       return newOrg
     }
 
