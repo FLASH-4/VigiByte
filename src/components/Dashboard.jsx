@@ -21,8 +21,24 @@ export default function Dashboard({ user, onLogout }) {
 
   // Camera Nodes: Persisted in Supabase per-user
   const [cameras, setCameras] = useState([])
-  
+
   const [selectedCamera, setSelectedCamera] = useState(null) // Currently focused camera in 'Inspector' mode
+
+  const [showAddModal, setShowAddModal] = useState(false) // UI state for adding new cameras
+  const [liveStats, setLiveStats] = useState([])         // Data for Recharts analytics
+  const [globalAlerts, setGlobalAlerts] = useState([])   // Master list of all security breaches
+  const [activeTab, setActiveTab] = useState('alerts')   // UI navigation: Alerts vs Database
+  const [criminals, setCriminals] = useState([])         // Records from Supabase
+  const [lastMatchOnNode, setLastMatchOnNode] = useState(null)
+  const [localNodeStats, setLocalNodeStats] = useState({ totalDetections: 0, lastConf: 0 })
+  const [viewingImageUrl, setViewingImageUrl] = useState(null) // Full-screen image viewer state
+  const [linkStatus, setLinkStatus] = useState('CONNECTING') // CONNECTING | ENCRYPTED | DISCONNECTED
+  const [detectedCriminals, setDetectedCriminals] = useState([]) // Live subjects in the current active feed
+
+  // Officers Management (Admin Only)
+  const [pendingOfficers, setPendingOfficers] = useState([])
+  const [approvedOfficers, setApprovedOfficers] = useState([])
+  const [isApproved, setIsApproved] = useState(false)
 
   // Effect to prevent background scrolling when the Inspector Modal is active
   useEffect(() => {
@@ -46,23 +62,7 @@ export default function Dashboard({ user, onLogout }) {
       setGlobalAlerts([]);
       setDetectedCriminals([]);
     }
-  }, [isApproved])
-  
-  const [showAddModal, setShowAddModal] = useState(false) // UI state for adding new cameras
-  const [liveStats, setLiveStats] = useState([])         // Data for Recharts analytics
-  const [globalAlerts, setGlobalAlerts] = useState([])   // Master list of all security breaches
-  const [activeTab, setActiveTab] = useState('alerts')   // UI navigation: Alerts vs Database
-  const [criminals, setCriminals] = useState([])         // Records from Supabase
-  const [lastMatchOnNode, setLastMatchOnNode] = useState(null)
-  const [localNodeStats, setLocalNodeStats] = useState({ totalDetections: 0, lastConf: 0 })
-  const [viewingImageUrl, setViewingImageUrl] = useState(null) // Full-screen image viewer state
-  const [linkStatus, setLinkStatus] = useState('CONNECTING') // CONNECTING | ENCRYPTED | DISCONNECTED
-  const [detectedCriminals, setDetectedCriminals] = useState([]) // Live subjects in the current active feed
-
-  // Officers Management (Admin Only)
-  const [pendingOfficers, setPendingOfficers] = useState([])
-  const [approvedOfficers, setApprovedOfficers] = useState([])
-  const [isApproved, setIsApproved] = useState(false)
+  }, [isApproved, selectedCamera])
 
   /**
    * SYSTEM HEALTH CHECK
