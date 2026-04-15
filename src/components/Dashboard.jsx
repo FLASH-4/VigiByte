@@ -153,33 +153,19 @@ export default function Dashboard({ user, onLogout }) {
       const pollInterval = setInterval(async () => {
         try {
           // Check if user still exists (rejection detection)
-          const { data: userExists } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
+          const { data: userExists, error } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
+
           if (!userExists || userExists.length === 0) {
-            console.log('User deleted - showing alert and redirecting');
+            console.log('⚠️ REJECTION DETECTED - User not found in database');
             clearInterval(pollInterval);
+
             alert('❌ Your registration was not approved by the admin. Please register again.');
             onLogout();
-            // Ensure redirect happens immediately before any page reload
-            setTimeout(() => {
-              window.location.href = '/register';
-            }, 100);
+
+            // Force redirect
+            console.log('🔴 Redirecting to register...');
+            window.location.href = '/register';
             return;
-          }
-
-          // Check approval status
-          const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', user?.id).eq('organization_id', user?.organization_id);
-          const nowApproved = approved && approved.length > 0;
-
-          if (nowApproved && !isApproved) {
-            // Just got approved
-            console.log('User approved - loading data');
-            setIsApproved(true);
-            loadCameras();
-            loadCriminals();
-          } else if (!nowApproved && isApproved) {
-            // Just got revoked - this will trigger the useEffect cleanup
-            console.log('User revoked - setting isApproved to false');
-            setIsApproved(false);
           }
         } catch (err) {
           console.error('Polling error:', err);
@@ -342,77 +328,44 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
-  // Reject/remove an officer - COMPLETE REWRITE
+  // Reject/remove an officer
   async function handleRemoveOfficer(officerId) {
     console.log('=== REJECT STARTED ===', officerId);
 
     try {
-      // Check approval status
-      const { data: approved, error: checkError } = await scopedSupabase
+      const { data: approved } = await scopedSupabase
         .from('approved_officers')
         .select('*')
         .eq('user_id', officerId)
         .eq('organization_id', user?.organization_id);
 
-      if (checkError) console.error('Check error:', checkError);
-
       const isPending = !approved || approved.length === 0;
-      console.log('Is pending?', isPending, 'Officer ID:', officerId);
 
       if (isPending) {
-        // === DELETE PENDING OFFICER ===
-        console.log('Step 1: Removing from UI...');
+        console.log('Deleting pending officer...');
         setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
 
-        console.log('Step 2: Deleting from approved_officers table (if exists)...');
-        await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId);
+        // Try RPC function first
+        const { error: rpcError } = await supabase.rpc('delete_officer_account', { officer_id: officerId });
 
-        console.log('Step 3: Deleting user record from users table...');
-        const { data: deleted, error: err1 } = await supabaseAdmin
-          .from('users')
-          .delete()
-          .eq('id', officerId);
-
-        console.log('Delete result:', deleted, 'Error:', err1);
-
-        if (err1) {
-          console.error('❌ DELETE FAILED:', err1);
-          console.log('Attempting alternative delete method...');
-
-          // Try RPC function if exists
-          const { error: err2 } = await supabase.rpc('delete_user', { user_id: officerId });
-          if (err2) console.error('RPC delete also failed:', err2);
-
-          return;
+        if (rpcError) {
+          console.log('RPC failed, using direct delete:', rpcError);
+          const { error: dirError } = await supabaseAdmin.from('users').delete().eq('id', officerId);
+          if (dirError) console.error('Direct delete failed:', dirError);
         }
 
-        console.log('✅ DELETION SUCCESSFUL');
-        console.log('Step 4: Reloading officers list...');
-        await new Promise(r => setTimeout(r, 300));
-        await loadOfficers();
-        console.log('=== REJECT COMPLETED ===');
-
+        console.log('✅ Deletion attempt completed');
+        setTimeout(() => loadOfficers(), 300);
       } else {
-        // === REVOKE APPROVED OFFICER ===
         console.log('Revoking approved officer...');
-        setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
         setApprovedOfficers(prev => prev.filter(o => o.id !== officerId));
-
-        const { error } = await scopedSupabase
-          .from('approved_officers')
-          .delete()
-          .eq('user_id', officerId);
-
-        if (error) {
-          console.error('Revoke error:', error);
-          return;
-        }
-
-        console.log('✅ REVOKE SUCCESSFUL');
-        await loadOfficers();
+        const { error } = await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId);
+        if (error) console.error('Revoke error:', error);
+        setTimeout(() => loadOfficers(), 300);
       }
     } catch (err) {
-      console.error('❌ EXCEPTION:', err);
+      console.error('Exception:', err);
+      await loadOfficers();
     }
   }
 
