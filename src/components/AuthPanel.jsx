@@ -15,12 +15,14 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
   const [showPassword, setShowPassword] = useState(false)
   const [totpCode, setTotpCode] = useState('')
   const [copied, setCopied] = useState(false)
+  const [isRejected, setIsRejected] = useState(false)
 
   // Check if user was rejected and should show register form
   useEffect(() => {
     const showRegister = localStorage.getItem('vigibyte_show_register');
     if (showRegister === 'true') {
       setIsLogin(false);
+      setIsRejected(true);
       localStorage.removeItem('vigibyte_show_register');
     }
   }, [])
@@ -289,6 +291,16 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
           <Lock className="text-blue-500" size={28} />
           <h1 className="text-2xl font-bold text-white">VigiByte</h1>
         </div>
+
+        {isRejected && !isLogin && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 flex gap-3">
+            <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-red-200">
+              <p className="font-semibold">Rejected by Admin</p>
+              <p className="text-xs text-red-300 mt-1">Please register again to reapply</p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
