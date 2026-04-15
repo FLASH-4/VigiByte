@@ -380,15 +380,29 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
       {/* --- REGISTRY LIST VIEW --- */}
       <div className="space-y-2 mt-6">
         {criminals.map(c => (
-          <div key={c.id} className="bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] rounded-2xl p-4 flex items-center gap-5 transition-all group">
+          <div key={c.id} className={`border rounded-2xl p-4 flex items-center gap-5 transition-all group ${c.is_global ? 'bg-emerald-500/5 border-emerald-500/20 hover:bg-emerald-500/10' : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'}`}>
             <img src={c.photo_url} onClick={() => setSelectedImage({ url: c.photo_url, name: c.name })} className="w-12 h-12 rounded-xl object-cover border border-white/10 cursor-pointer" alt="subject" />
+
             <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                {c.is_global ? (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 uppercase tracking-widest">
+                    🌍 🔒 Global
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 uppercase tracking-widest">
+                    🏢 Organization
+                  </span>
+                )}
+              </div>
+
               <p className="text-xs font-bold text-white uppercase tracking-tight">{c.name}{c.age ? `, ${c.age}` : ''}</p>
               <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-1">{c.crime}</p>
             </div>
+
             <div className="flex items-center gap-2">
                 <button onClick={() => downloadRecordAsCSV(c)} className="p-2 text-slate-400 hover:text-emerald-500 bg-white/5 rounded-lg"><FileJson size={16} /></button>
-                {userRole === 'admin' && <button onClick={() => setDeleteTarget(c)} className="p-2 text-slate-400 hover:text-red-500 bg-white/5 rounded-lg"><Trash2 size={16} /></button>}
+                {!c.is_global && userRole === 'admin' && <button onClick={() => setDeleteTarget(c)} className="p-2 text-slate-400 hover:text-red-500 bg-white/5 rounded-lg"><Trash2 size={16} /></button>}
             </div>
             <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${c.danger_level === 'HIGH' ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'}`}>{c.danger_level}</span>
           </div>
