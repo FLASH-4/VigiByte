@@ -342,62 +342,77 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
-  // Reject/remove an officer - REWRITTEN
+  // Reject/remove an officer - COMPLETE REWRITE
   async function handleRemoveOfficer(officerId) {
+    console.log('=== REJECT STARTED ===', officerId);
+
     try {
-      const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', officerId).eq('organization_id', user?.organization_id);
+      // Check approval status
+      const { data: approved, error: checkError } = await scopedSupabase
+        .from('approved_officers')
+        .select('*')
+        .eq('user_id', officerId)
+        .eq('organization_id', user?.organization_id);
+
+      if (checkError) console.error('Check error:', checkError);
+
       const isPending = !approved || approved.length === 0;
+      console.log('Is pending?', isPending, 'Officer ID:', officerId);
 
       if (isPending) {
-        // PENDING OFFICER - DELETE FROM DATABASE
-        console.log('🔴 REJECTING officer:', officerId);
-
-        // Step 1: Remove from UI immediately
+        // === DELETE PENDING OFFICER ===
+        console.log('Step 1: Removing from UI...');
         setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
 
-        // Step 2: Delete from users table using admin supabase client
-        const { data: deletedUser, error: deleteError } = await supabase
+        console.log('Step 2: Deleting from approved_officers table (if exists)...');
+        await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId);
+
+        console.log('Step 3: Deleting user record from users table...');
+        const { data: deleted, error: err1 } = await supabase
           .from('users')
           .delete()
-          .eq('id', officerId)
-          .select();
+          .eq('id', officerId);
 
-        if (deleteError) {
-          console.error('❌ Delete failed:', deleteError);
-          setPendingOfficers(prev => [...prev]); // Revert UI
-          await loadOfficers();
+        console.log('Delete result:', deleted, 'Error:', err1);
+
+        if (err1) {
+          console.error('❌ DELETE FAILED:', err1);
+          console.log('Attempting alternative delete method...');
+
+          // Try RPC function if exists
+          const { error: err2 } = await supabase.rpc('delete_user', { user_id: officerId });
+          if (err2) console.error('RPC delete also failed:', err2);
+
           return;
         }
 
-        console.log('✅ Officer deleted:', deletedUser);
-
-        // Step 3: Reload list after short delay to ensure DB is updated
-        setTimeout(() => loadOfficers(), 200);
+        console.log('✅ DELETION SUCCESSFUL');
+        console.log('Step 4: Reloading officers list...');
+        await new Promise(r => setTimeout(r, 300));
+        await loadOfficers();
+        console.log('=== REJECT COMPLETED ===');
 
       } else {
-        // APPROVED OFFICER - REVOKE APPROVAL
-        console.log('🔴 REVOKING officer:', officerId);
-
+        // === REVOKE APPROVED OFFICER ===
+        console.log('Revoking approved officer...');
+        setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
         setApprovedOfficers(prev => prev.filter(o => o.id !== officerId));
 
-        const { error: revokeError } = await scopedSupabase
+        const { error } = await scopedSupabase
           .from('approved_officers')
           .delete()
-          .eq('user_id', officerId)
-          .eq('organization_id', user?.organization_id);
+          .eq('user_id', officerId);
 
-        if (revokeError) {
-          console.error('❌ Revoke failed:', revokeError);
-          await loadOfficers();
+        if (error) {
+          console.error('Revoke error:', error);
           return;
         }
 
-        console.log('✅ Officer revoked');
-        setTimeout(() => loadOfficers(), 200);
+        console.log('✅ REVOKE SUCCESSFUL');
+        await loadOfficers();
       }
     } catch (err) {
-      console.error('❌ Error in handleRemoveOfficer:', err);
-      await loadOfficers();
+      console.error('❌ EXCEPTION:', err);
     }
   }
 
