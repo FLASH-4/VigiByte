@@ -28,6 +28,15 @@ export const supabase = createClient(
 )
 
 /**
+ * ADMIN CLIENT - Bypasses RLS for server operations
+ * Uses service role key for admin operations
+ */
+export const supabaseAdmin = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+)
+
+/**
  * SCOPED CLIENT FACTORY
  * Creates a Supabase client that automatically attaches the user's ID
  * as a custom header (x-user-id) on every request.

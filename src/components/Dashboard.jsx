@@ -6,7 +6,7 @@ import CameraFeed from './CameraFeed'
 import AlertPanel from './AlertPanel'
 import CriminalDB from './CriminalDB'
 import { getStream, releaseStream, releaseAllStreams } from '../lib/streamManager'
-import { supabase, createScopedClient } from '../lib/supabase'
+import { supabase, createScopedClient, supabaseAdmin } from '../lib/supabase'
 
 /**
  * VIGIBYTE DASHBOARD
@@ -368,7 +368,7 @@ export default function Dashboard({ user, onLogout }) {
         await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId);
 
         console.log('Step 3: Deleting user record from users table...');
-        const { data: deleted, error: err1 } = await supabase
+        const { data: deleted, error: err1 } = await supabaseAdmin
           .from('users')
           .delete()
           .eq('id', officerId);
@@ -442,7 +442,7 @@ export default function Dashboard({ user, onLogout }) {
       }
 
       // Delete the user account
-      const { error: userError } = await scopedSupabase.from('users').delete().eq('id', user?.id);
+      const { error: userError } = await supabaseAdmin.from('users').delete().eq('id', user?.id);
       if (userError) throw userError;
 
       console.log('User account deleted successfully');
