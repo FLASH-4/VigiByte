@@ -167,9 +167,8 @@ export default function Dashboard({ user, onLogout }) {
             releaseAllStreams();
 
             setTimeout(() => {
-              alert('❌ Your registration was not approved by the admin. Please register again.');
               onLogout();
-              window.location.replace('/register');
+              window.location.href = '/register';
             }, 100);
             return;
           }
@@ -342,10 +341,35 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
-  // Reject/remove officer - SIMPLE & BULLETPROOF
+  // Revoke approved officer - REMOVE FROM approved_officers ONLY (officer keeps user record)
+  async function handleRevokeOfficer(officerId) {
+    try {
+      console.log('🔄 REVOKING OFFICER:', officerId);
+
+      // Remove from UI immediately
+      setApprovedOfficers(prev => prev.filter(o => o.id !== officerId));
+
+      // Only remove from approved_officers - don't delete user
+      const { error } = await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId);
+      if (error) throw error;
+
+      console.log('✅ Officer revoked');
+
+      // Reload list
+      setTimeout(async () => {
+        await loadOfficers();
+      }, 300);
+
+    } catch (err) {
+      console.error('Exception:', err);
+      await loadOfficers();
+    }
+  }
+
+  // Reject pending officer - DELETE USER ENTIRELY (officer removed from system)
   async function handleRemoveOfficer(officerId) {
     try {
-      console.log('🔴 REMOVE OFFICER:', officerId);
+      console.log('🔴 REJECTING OFFICER:', officerId);
 
       // Remove from UI immediately
       setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
@@ -367,7 +391,7 @@ export default function Dashboard({ user, onLogout }) {
         }
       }
 
-      console.log('✅ Officer removed');
+      console.log('✅ Officer rejected and deleted');
 
       // Reload list after deletion propagates
       setTimeout(async () => {
@@ -636,7 +660,7 @@ export default function Dashboard({ user, onLogout }) {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => handleRemoveOfficer(officer.id)}
+                                onClick={() => handleRevokeOfficer(officer.id)}
                                 className="w-full sm:w-auto bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 sm:py-1.5 rounded text-xs sm:text-sm font-bold uppercase transition-all active:scale-95 cursor-pointer pointer-events-auto"
                               >
                                 Revoke

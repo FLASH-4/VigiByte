@@ -5,14 +5,14 @@ RETURNS BOOLEAN AS $$
 DECLARE
   officer_email TEXT;
 BEGIN
-  -- Get the officer's email before deletion
-  SELECT email INTO officer_email FROM auth.users WHERE id = officer_id;
+  -- Get the officer's email before deletion (cast TEXT to UUID)
+  SELECT email INTO officer_email FROM auth.users WHERE id = officer_id::uuid;
 
   -- Delete from approved_officers
-  DELETE FROM approved_officers WHERE user_id = officer_id;
+  DELETE FROM approved_officers WHERE user_id = officer_id::uuid;
 
   -- Delete from public.users
-  DELETE FROM public.users WHERE id = officer_id;
+  DELETE FROM public.users WHERE id = officer_id::uuid;
 
   -- Delete from auth.users (only if email exists)
   IF officer_email IS NOT NULL THEN
