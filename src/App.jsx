@@ -12,6 +12,40 @@ import {
 } from './services/browserAuth.js'
 
 /**
+ * STORAGE SAFETY WRAPPER
+ * Purpose: Abstracts all localStorage operations behind try/catch guards.
+ * On mobile browsers (especially iOS Safari in private mode), localStorage
+ * can throw exceptions or silently fail. This wrapper ensures the app
+ * degrades gracefully instead of crashing or behaving unexpectedly.
+ */
+const storage = {
+  get: (key) => {
+    try { 
+      return localStorage.getItem(key) 
+    } catch(e) { 
+      console.warn('Storage read failed:', key, e)
+      return null 
+    }
+  },
+  set: (key, value) => {
+    try { 
+      localStorage.setItem(key, value)
+      return true
+    } catch(e) { 
+      console.warn('Storage write failed:', key, e)
+      return false
+    }
+  },
+  remove: (key) => {
+    try { 
+      localStorage.removeItem(key) 
+    } catch(e) { 
+      console.warn('Storage remove failed:', key, e) 
+    }
+  }
+}
+
+/**
  * VIGIBYTE ROOT COMPONENT (App.jsx)
  * Purpose: Acts as the Application Controller. 
  * Manages the top-level state for user authentication, session persistence, 
@@ -23,21 +57,43 @@ export default function App() {
   const [loading, setLoading] = useState(true)    // Handles the global initial loading state
   const [authError, setAuthError] = useState('')  // Captures and displays authentication failures
   
-  // Persistent User Registry: Syncs with LocalStorage to simulate a database for demo purposes
+  // Persistent User Registry: Syncs with localStorage to simulate a database for demo purposes.
+  // Uses safe storage.get() to handle mobile browser restrictions gracefully.
   const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('vigibyte_users')
-    return saved ? JSON.parse(saved) : []
+    try {
+      const saved = storage.get('vigibyte_users')
+      return saved ? JSON.parse(saved) : []
+    } catch(e) { 
+      return [] 
+    }
   })
 
   /**
    * SESSION RESTORATION (Auto-Login)
-   * On application mount, verifies if a valid JWT exists in LocalStorage.
+   * On application mount, verifies if a valid JWT exists in localStorage.
    * Ensures secure session persistence across browser refreshes.
+   * Also performs an early storage availability test to catch mobile
+   * browsers that block site data (e.g. iOS Safari private mode).
    */
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('vigibyte_token')
-      const userData = localStorage.getItem('vigibyte_user')
+
+      // MOBILE STORAGE TEST: Verify localStorage is functional before proceeding.
+      // iOS Safari in private/incognito mode has a 0-byte quota and throws on setItem.
+      // This catches that early and shows a clear error instead of silently failing.
+      try {
+        localStorage.setItem('vigibyte_test', '1')
+        const test = localStorage.getItem('vigibyte_test')
+        localStorage.removeItem('vigibyte_test')
+        if (test !== '1') throw new Error('Storage test mismatch')
+      } catch(e) {
+        setAuthError('⚠️ Your browser is blocking site storage. Please disable private/incognito mode or allow site data in your browser settings.')
+        setLoading(false)
+        return
+      }
+
+      const token = storage.get('vigibyte_token')
+      const userData = storage.get('vigibyte_user')
       
       if (token && userData) {
         // Cryptographic verification of the existing session token
@@ -48,8 +104,8 @@ export default function App() {
           await auditLogger.log('session_restored', verified.id, verified.email)
         } else {
           // Automatic cleanup of expired or tampered session tokens
-          localStorage.removeItem('vigibyte_token')
-          localStorage.removeItem('vigibyte_user')
+          storage.remove('vigibyte_token')
+          storage.remove('vigibyte_user')
         }
       }
       setLoading(false)
@@ -62,6 +118,8 @@ export default function App() {
    * AUTHENTICATION HANDLER
    * Orchestrates both Registration and Login workflows.
    * Includes rate limiting, password hashing (PBKDF2), and audit logging.
+   * All localStorage operations go through the safe storage wrapper to
+   * prevent silent failures on restrictive mobile browsers.
    */
   const handleLogin = async (credentials) => {
     setAuthError('')
@@ -101,15 +159,18 @@ export default function App() {
           createdAt: new Date().toISOString()
         }
         
-        // Persist the new record to the local registry
+        // Persist the new record to the local registry.
+        // If storage.set returns false, it means the browser blocked the write —
+        // throw immediately so the user sees an actionable error message.
         const updatedUsers = [...users, newUser]
         setUsers(updatedUsers)
-        localStorage.setItem('vigibyte_users', JSON.stringify(updatedUsers))
+        const saved = storage.set('vigibyte_users', JSON.stringify(updatedUsers))
+        if (!saved) throw new Error('Storage failed — please allow site data in your browser settings and try again.')
 
         // AUTHENTICATION: Generate signed token for immediate session access
         const token = await generateToken(newUser.id, newUser.email, newUser.role)
-        localStorage.setItem('vigibyte_token', token)
-        localStorage.setItem('vigibyte_user', JSON.stringify({
+        storage.set('vigibyte_token', token)
+        storage.set('vigibyte_user', JSON.stringify({
           id: newUser.id,
           email: newUser.email,
           role: newUser.role
@@ -139,10 +200,10 @@ export default function App() {
           throw new Error('Invalid email or password')
         }
 
-        // Successful validation - Token generation
+        // Successful validation — generate and persist the new session token
         const token = await generateToken(foundUser.id, foundUser.email, foundUser.role)
-        localStorage.setItem('vigibyte_token', token)
-        localStorage.setItem('vigibyte_user', JSON.stringify({
+        storage.set('vigibyte_token', token)
+        storage.set('vigibyte_user', JSON.stringify({
           id: foundUser.id,
           email: foundUser.email,
           role: foundUser.role
@@ -164,16 +225,17 @@ export default function App() {
   /**
    * LOGOUT HANDLER
    * Performs session termination, clears local storage, and updates the audit log.
+   * Uses safe storage wrapper to ensure cleanup succeeds even on restrictive browsers.
    */
   const handleLogout = async () => {
     if (user) {
       await auditLogger.log('logout', user.id, user.email)
     }
     
-    // Systematic removal of session data
+    // Systematic removal of session data and hardware stream release
     releaseStream('cam-1')
-    localStorage.removeItem('vigibyte_token')
-    localStorage.removeItem('vigibyte_user')
+    storage.remove('vigibyte_token')
+    storage.remove('vigibyte_user')
     setUser(null)
     setAuthError('')
   }

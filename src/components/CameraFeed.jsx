@@ -34,10 +34,11 @@ export default function CameraFeed({ activeCamera, onAlert, user, onDetectedCrim
    * Uses headers for API key authentication.
    */
   async function loadCriminals() {
-    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/criminals?select=*`, {
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/criminals?select=*&user_id=eq.${user?.id}`, {
       headers: {
         'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'x-user-id': user?.id
       }
     })
     const data = await res.json()

@@ -31,7 +31,7 @@ const resizeImage = (file, maxWidth = 640) => {
   });
 };
 
-export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 'viewer' }) {
+export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 'viewer', user }) {
   // --- COMPONENT STATES ---
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ name: '', age: '', crime: '', crime_date: '', danger_level: 'MEDIUM' })
@@ -143,6 +143,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
                   danger_level: (r.danger_level || r.Danger_Level || 'MEDIUM').toUpperCase(),
                   photo_url: r.Photo_URL || r.photo_url || null,
                   face_descriptor: face_descriptor,
+                  user_id: user?.id,
                 }
               }).filter(r => r.name || r.crime || r.photo_url)
 
@@ -234,7 +235,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
       let photo_url = null
       if (supabase && supabase.storage) {
         try {
-          const { data: ud } = await supabase.storage.from('criminal-photos').upload(`${Date.now()}-${form.name}.jpg`, photoFile)
+          const { data: ud } = await supabase.storage.from('criminal-photos').upload(`${user?.id}/${Date.now()}-${form.name}.jpg`, photoFile)
           if (ud) photo_url = supabase.storage.from('criminal-photos').getPublicUrl(ud.path).data.publicUrl
         } catch (e) { console.error("Storage upload error") }
       }
@@ -248,6 +249,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
         danger_level: form.danger_level || 'MEDIUM',
         face_descriptor: descriptorArray,
         photo_url,
+        user_id: user?.id,
       })
 
       if (error) throw error

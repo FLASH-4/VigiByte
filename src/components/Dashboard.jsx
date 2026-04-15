@@ -5,8 +5,8 @@ import { loadModels, detectAllCriminals, checkBackend } from '../lib/faceRecogni
 import CameraFeed from './CameraFeed'
 import AlertPanel from './AlertPanel'
 import CriminalDB from './CriminalDB'
-import { getStream } from '../lib/streamManager'
-import { supabase } from '../lib/supabase'
+import { getStream, releaseStream } from '../lib/streamManager'
+import { supabase, createScopedClient } from '../lib/supabase'
 
 /**
  * VIGIBYTE DASHBOARD
@@ -15,7 +15,9 @@ import { supabase } from '../lib/supabase'
  * database records, and system health monitoring.
  */
 export default function Dashboard({ user, onLogout }) {
-  // --- STATE MANAGEMENT ---
+  const scopedSupabase = createScopedClient(user?.id)
+
+  // --- STATE MANAGEMENT --- 
   
   // Camera Nodes: Persisted in localStorage for consistent sessions
   const [cameras, setCameras] = useState(() => {
@@ -79,7 +81,7 @@ export default function Dashboard({ user, onLogout }) {
 
   // Fetches suspect records from the cloud database
   async function loadCriminals() { 
-    const { data } = await supabase.from('criminals').select('*'); 
+    const { data } = await scopedSupabase.from('criminals').select('*').eq('user_id', user?.id); 
     setCriminals(data || []) 
   }
 
@@ -131,6 +133,7 @@ export default function Dashboard({ user, onLogout }) {
   // Removes a camera node and performs UI cleanup
   const handleDeleteCamera = (id, e) => { 
     e.stopPropagation(); 
+    releaseStream(id)
     setCameras(prev => prev.filter(c => c.id !== id)); 
     if (selectedCamera?.id === id) setSelectedCamera(null); 
   }
@@ -203,7 +206,7 @@ export default function Dashboard({ user, onLogout }) {
                 {activeTab === 'alerts' ? (
                   <AlertPanel alerts={globalAlerts} onViewImage={setViewingImageUrl} />
                 ) : user?.role !== 'viewer' ? (
-                  <CriminalDB criminals={criminals} onRefresh={loadCriminals} supabase={supabase} userRole={user?.role} />
+                  <CriminalDB criminals={criminals} onRefresh={loadCriminals} supabase={scopedSupabase} userRole={user?.role} user={user} />
                 ) : (
                   <div className="py-12 text-center opacity-50"><AlertCircle size={40} className="mx-auto mb-4 text-slate-600" /><p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">View-only Access - Database Management Disabled</p></div>
                 )}
