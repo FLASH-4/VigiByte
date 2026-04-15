@@ -13,7 +13,7 @@ const pending = {}
 
 /**
  * CAMERA RESOURCE ACQUISITION
- * Retrieves a video stream for a specific Node ID. 
+ * Retrieves a video stream for a specific Node ID.
  * Implements a "piggyback" logic to handle multiple requests for the same camera simultaneously.
  */
 export async function getStream(cameraId) {
@@ -55,4 +55,18 @@ export function releaseStream(cameraId) {
     streams[cameraId].getTracks().forEach(t => t.stop())
     delete streams[cameraId] // Remove from active cache
   }
+}
+
+/**
+ * RELEASE ALL STREAMS
+ * Stops all active camera streams at once (useful for logout cleanup)
+ */
+export function releaseAllStreams() {
+  Object.keys(streams).forEach(cameraId => {
+    if (streams[cameraId]) {
+      streams[cameraId].getTracks().forEach(t => t.stop())
+    }
+  })
+  // Clear all streams
+  Object.keys(streams).forEach(key => delete streams[key])
 }

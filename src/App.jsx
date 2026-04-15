@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
-import { releaseStream } from './lib/streamManager'
+import { releaseAllStreams } from './lib/streamManager'
+import { supabase } from './lib/supabase'
 import Dashboard from './components/Dashboard'
 import AuthPanel from './components/AuthPanel'
-import { 
-  generateToken, 
-  verifyToken, 
-  hashPassword, 
-  comparePasswords, 
+import {
+  generateToken,
+  verifyToken,
+  hashPassword,
+  comparePasswords,
   loginLimiter,
-  auditLogger 
+  auditLogger
 } from './services/browserAuth.js'
 
 /**
@@ -56,17 +57,7 @@ export default function App() {
   const [user, setUser] = useState(null)          // Stores current authenticated user metadata
   const [loading, setLoading] = useState(true)    // Handles the global initial loading state
   const [authError, setAuthError] = useState('')  // Captures and displays authentication failures
-  
-  // Persistent User Registry: Syncs with localStorage to simulate a database for demo purposes.
-  // Uses safe storage.get() to handle mobile browser restrictions gracefully.
-  const [users, setUsers] = useState(() => {
-    try {
-      const saved = storage.get('vigibyte_users')
-      return saved ? JSON.parse(saved) : []
-    } catch(e) { 
-      return [] 
-    }
-  })
+  const [users, setUsers] = useState([])          // User registry from Supabase
 
   /**
    * SESSION RESTORATION (Auto-Login)
@@ -92,12 +83,15 @@ export default function App() {
         return
       }
 
+      // Load users from Supabase
+      await loadUsers()
+
       const token = storage.get('vigibyte_token')
       const userData = storage.get('vigibyte_user')
-      
+
       if (token && userData) {
         // Cryptographic verification of the existing session token
-        const verified = await verifyToken(token) 
+        const verified = await verifyToken(token)
         if (verified) {
           setUser(JSON.parse(userData))
           // Forensic log of the restored session
@@ -110,9 +104,21 @@ export default function App() {
       }
       setLoading(false)
     }
-    
+
     checkAuth()
   }, [])
+
+  // Load users from Supabase
+  async function loadUsers() {
+    try {
+      const { data, error } = await supabase.from('users').select('*')
+      if (error) throw error
+      setUsers(data || [])
+    } catch(err) {
+      console.warn('Failed to load users from Supabase, using empty list:', err)
+      setUsers([])
+    }
+  }
 
   /**
    * AUTHENTICATION HANDLER
@@ -147,25 +153,25 @@ export default function App() {
         }
 
         const role = credentials.role || 'officer'
-        
+
         // SECURE HASHING: Uses PBKDF2 with 10k iterations instead of plaintext
         const hashedPassword = await hashPassword(password)
-        
-        const newUser = { 
-          email, 
-          passwordHash: hashedPassword, 
-          role, 
+
+        const newUser = {
+          email,
+          passwordHash: hashedPassword,
+          role,
           id: 'user_' + Date.now(),
           createdAt: new Date().toISOString()
         }
-        
-        // Persist the new record to the local registry.
-        // If storage.set returns false, it means the browser blocked the write —
-        // throw immediately so the user sees an actionable error message.
+
+        // Persist to Supabase
+        const { error: insertError } = await supabase.from('users').insert([newUser])
+        if (insertError) throw new Error('Failed to register user: ' + insertError.message)
+
+        // Update local state
         const updatedUsers = [...users, newUser]
         setUsers(updatedUsers)
-        const saved = storage.set('vigibyte_users', JSON.stringify(updatedUsers))
-        if (!saved) throw new Error('Storage failed — please allow site data in your browser settings and try again.')
 
         // AUTHENTICATION: Generate signed token for immediate session access
         const token = await generateToken(newUser.id, newUser.email, newUser.role)
@@ -175,12 +181,12 @@ export default function App() {
           email: newUser.email,
           role: newUser.role
         }))
-        
+
         setUser({ id: newUser.id, email: newUser.email, role: newUser.role })
-        
+
         // Audit trail for new account creation
         await auditLogger.log('user_registered', newUser.id, newUser.email, { role })
-        
+
         // Clear rate limiter tracking on successful entry
         loginLimiter.reset(`login_${email}`)
         
@@ -232,16 +238,8 @@ export default function App() {
       await auditLogger.log('logout', user.id, user.email)
     }
 
-    // Release all active camera streams
-    try {
-      const cameraData = storage.get('security_cameras')
-      if (cameraData) {
-        const savedCameras = JSON.parse(cameraData)
-        savedCameras.forEach(cam => releaseStream(cam.id))
-      }
-    } catch(e) {
-      console.warn('Error releasing cameras on logout:', e)
-    }
+    // Release ALL active camera streams
+    releaseAllStreams()
 
     storage.remove('vigibyte_token')
     storage.remove('vigibyte_user')
