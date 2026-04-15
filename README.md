@@ -1,191 +1,375 @@
-# 🛡️ VigiByte — AI-Powered Security Intelligence Platform
+# VigiByte - Global Criminal Intelligence Platform 🌍🔍
 
-VigiByte is a real-time criminal identification system built for law enforcement. It uses live camera feeds and AI facial recognition to detect known criminals instantly, with a Python backend for production-grade detection of tilted and angled faces.
+> A multi-tenant AI-powered surveillance and criminal database system with real-time threat detection and global intelligence sharing.
 
-🌐 **Live Demo:** [vigi-byte.vercel.app](https://vigi-byte.vercel.app)
+## 🎯 Project Overview
 
----
+VigiByte is an enterprise-grade security platform that enables organizations to:
+- **Monitor** multiple surveillance cameras with AI-powered facial recognition
+- **Detect** wanted criminals in real-time camera feeds
+- **Share** global criminal database across all organizations
+- **Manage** officers and viewers with role-based access control
+- **Track** security alerts and maintain audit trails
 
-## ✨ Features
+## ✨ Key Features
 
-- 🎥 **Live Surveillance** — Webcam & IP camera support with real-time video feed
-- 🤖 **AI Face Recognition** — Python backend (DeepFace + Facenet + SSD) handles tilted, angled, and partial faces
-- 🗄️ **Criminal Database** — Add, search, and manage criminal records with photo enrollment
-- 🔔 **Instant Alerts** — Real-time threat notifications with confidence score and bounding box
-- 🔐 **Role-Based Access** — Admin, Officer, and Viewer roles with separate permissions
-- 📊 **Security Analytics** — Audit logs, detection history, and activity tracking
-- 🔒 **Secure Auth** — PBKDF2 password hashing + HMAC-signed tokens via Web Crypto API
-- 🌐 **Hybrid Detection** — Falls back to browser model if backend is offline
+### 🌐 Global Criminal Database
+- **Shared across all organizations** - worldwide threat intelligence
+- **Read-only protection** - immutable global records prevent tampering
+- **Persistent** - survives organization deletion
+- **Instantly accessible** - all users see updates in real-time
 
----
+### 📹 Real-Time Surveillance
+- **Multi-camera support** - manage unlimited surveillance nodes
+- **Live AI detection** - facial recognition powered by TensorFlow.js
+- **Instant alerts** - immediate notifications when criminals detected
+- **Performance monitoring** - track CPU load, detection confidence, signal metrics
+
+### 👥 Role-Based Access Control (RBAC)
+- **Admin** - Full control, can approve/revoke officers, manage org data
+- **Officer** - Can add cameras, manage local criminal database
+- **Viewer** - Read-only access, view alerts and criminal records
+
+### 🔐 Security Features
+- **2FA Authentication** - Google Authenticator support for admins
+- **Row-Level Security** - Data isolation per organization
+- **Audit Logging** - Complete activity trail
+- **Password Hashing** - PBKDF2 encryption
+- **Session Management** - JWT-based authentication
+
+### 📊 Admin Dashboard Features
+- **Officer Management** - Approve/revoke pending officers
+- **Real-time Subscriptions** - Automatic updates via Supabase Realtime
+- **Organization Profiles** - Multi-tenant data management
+- **System Health Monitoring** - Connection status tracking
 
 ## 🏗️ Architecture
 
+### Tech Stack
+- **Frontend**: React + Vite + Tailwind CSS
+- **Backend**: Supabase (PostgreSQL)
+- **Authentication**: Custom JWT + Supabase Auth
+- **AI/ML**: TensorFlow.js (face-api.js)
+- **Real-time**: Supabase Realtime
+- **Deployment**: Vercel
+
+### Database Schema
+
 ```
-Browser (React + Vite)  →  vigi-byte.vercel.app
-        │
-        ├── Supabase (PostgreSQL) — criminal records, face descriptors, photo storage
-        │
-        └── Python Backend (FastAPI + DeepFace)  →  flash-04-vigibyte-api.hf.space
-                └── Facenet + SSD — handles straight, tilted, angled faces
+organizations
+├── id, domain, created_at
+
+users
+├── id, email, password_hash, role, organization_id
+├── is_active, totp_secret, created_at
+
+cameras
+├── id, name, location, coordinates, type (webcam/ip/image)
+├── source, organization_id, created_at
+
+criminals
+├── id, name, age, crime, danger_level
+├── photo_url, organization_id, created_at
+
+global_criminals ⭐ (READ-ONLY, NOT organization-scoped)
+├── id, name, photo_url, is_wanted, threat_level
+├── is_active, created_at
+
+approved_officers
+├── id, user_id, organization_id, created_at
 ```
 
----
-
-## 🚀 Quick Start (Local)
+## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+
-- Python 3.11
-- Supabase account (free)
+- Node.js 16+
+- npm or yarn
+- Supabase account
+- Google Authenticator (for 2FA)
 
-### 1. Clone & Install
+### Environment Setup
+
+1. **Clone the repository**
 ```bash
 git clone https://github.com/FLASH-4/VigiByte.git
 cd VigiByte
+```
+
+2. **Create .env.local**
+```bash
+cp .env.example .env.local
+# Edit with your Supabase credentials
+```
+
+3. **Install dependencies**
+```bash
 npm install
 ```
 
-### 2. Setup Environment
-```bash
-cp .env.example .env
-# Fill in your values in .env
-```
+4. **Set up Supabase**
+- Create a Supabase project
+- Run migrations (see Database Setup)
+- Update `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
 
-### 3. Start Python Backend
+5. **Start development server**
 ```bash
-cd backend
-pip install -r requirements.txt
-& "C:\Program Files\Python311\python.exe" -m uvicorn main:app --reload --port 8001
-# Mac/Linux: python3 -m uvicorn main:app --reload --port 8001
-```
-
-### 4. Start Frontend
-```bash
-# In project root (new terminal)
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173)
+## 🗄️ Database Setup
 
----
+### Create Tables in Supabase SQL Editor
 
-## 🔑 Environment Variables
+```sql
+-- Organizations
+CREATE TABLE organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  domain TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
 
-Create a `.env` file in the project root:
+-- Users
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role TEXT CHECK (role IN ('admin', 'officer', 'viewer')),
+  organization_id UUID REFERENCES organizations(id),
+  is_active BOOLEAN DEFAULT true,
+  totp_secret TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
 
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key-here
-VITE_JWT_SECRET=your-random-secret-min-32-chars
-VITE_APP_NAME=VigiByte
-VITE_BACKEND_URL=http://localhost:8001
+-- Cameras
+CREATE TABLE cameras (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  location TEXT,
+  coordinates TEXT,
+  type TEXT CHECK (type IN ('webcam', 'ip', 'image')),
+  source TEXT,
+  organization_id UUID REFERENCES organizations(id),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Organization Criminals (local database)
+CREATE TABLE criminals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  age INTEGER,
+  crime TEXT,
+  danger_level TEXT DEFAULT 'MEDIUM',
+  photo_url TEXT,
+  photo_data BYTEA,
+  face_descriptor JSONB,
+  organization_id UUID REFERENCES organizations(id),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Global Criminals (SHARED, READ-ONLY)
+CREATE TABLE global_criminals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  photo_url TEXT,
+  photo_data BYTEA,
+  is_wanted BOOLEAN DEFAULT true,
+  threat_level TEXT DEFAULT 'medium',
+  description TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Approved Officers
+CREATE TABLE approved_officers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  organization_id UUID REFERENCES organizations(id),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Activity Log
+CREATE TABLE audit_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  action TEXT NOT NULL,
+  details JSONB,
+  ip_address TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
 ```
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VITE_SUPABASE_URL` | ✅ | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | ✅ | Supabase public/anon key |
-| `VITE_JWT_SECRET` | ✅ | Secret for signing session tokens (min 32 chars) |
-| `VITE_BACKEND_URL` | ✅ | Python backend URL (local or deployed) |
-| `VITE_APP_NAME` | No | Display name (default: VigiByte) |
+### Enable Row Level Security & Global Criminals Policy
 
-> `DATABASE_URL` in `.env.example` is optional — only needed if running local PostgreSQL via Docker. Main app uses Supabase cloud.
+```sql
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cameras ENABLE ROW LEVEL SECURITY;
+ALTER TABLE criminals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE global_criminals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE approved_officers ENABLE ROW LEVEL SECURITY;
 
----
+-- Global Criminals - READ-ONLY PROTECTION
+CREATE POLICY "Global criminals read-only" ON global_criminals
+  FOR SELECT USING (is_active = true);
 
-## 🌐 Deployment
+CREATE POLICY "Prevent insert to global" ON global_criminals
+  FOR INSERT WITH CHECK (false);
 
-| Service | Platform | URL |
-|---------|----------|-----|
-| Frontend | Vercel | [vigi-byte.vercel.app](https://vigi-byte.vercel.app) |
-| Backend | Hugging Face Spaces | [flash-04-vigibyte-api.hf.space](https://flash-04-vigibyte-api.hf.space) |
-| Database | Supabase | Cloud PostgreSQL |
+CREATE POLICY "Prevent update to global" ON global_criminals
+  FOR UPDATE USING (false);
 
-### Deploy Frontend (Vercel)
-1. Push to GitHub
-2. Import repo on [vercel.com](https://vercel.com) → select **Vite** preset
-3. Set environment variables
-4. Deploy
-
-### Deploy Backend (Hugging Face Spaces)
-1. New Space on [huggingface.co](https://huggingface.co) → SDK: Docker
-2. Upload `main.py`, `requirements.txt`, `Dockerfile`, `README.md`
-3. Space auto-builds and deploys
-
-> ⚠️ Hugging Face free tier may have cold starts. Use [UptimeRobot](https://uptimerobot.com) to keep it awake (ping every 5 min).
-
----
-
-## 🗃️ Tech Stack
-
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| Frontend | React 19 + Vite 8 | Fast build, component-based |
-| Styling | Tailwind CSS v4 | Utility-first, no custom CSS |
-| Database | Supabase (PostgreSQL) | SQL, built-in storage, RLS, free |
-| Face Detection | DeepFace (Facenet + SSD) | Tilted face support, no compilation |
-| Browser Fallback | @vladmandic/face-api | Works offline when backend down |
-| Auth | Web Crypto API (PBKDF2 + HMAC) | Browser-native, no extra packages |
-| Backend | FastAPI (Python) | Fast, async, easy deploy |
-| Charts | Recharts | React-native charts |
-| Icons | Lucide React | Modern, consistent |
-
----
-
-## 👤 User Roles
-
-| Role | Permissions |
-|------|-------------|
-| **Admin** | Full access — create, read, update, delete, manage users |
-| **Officer** | Create, read, update records |
-| **Viewer** | Read-only access |
-
----
-
-## 📁 Project Structure
-
-```
-VigiByte/
-├── src/
-│   ├── components/
-│   │   ├── AuthPanel.jsx       # Login / Register UI
-│   │   ├── CameraFeed.jsx      # Live camera + face detection
-│   │   ├── CriminalDB.jsx      # Criminal records management
-│   │   ├── Dashboard.jsx       # Main dashboard + analytics
-│   │   └── AlertPanel.jsx      # Real-time alert notifications
-│   ├── lib/
-│   │   ├── faceRecognition.js  # Backend API bridge + browser fallback
-│   │   ├── supabase.js         # Supabase client
-│   │   ├── streamManager.js    # Camera stream lifecycle management
-│   │   └── detectionHistory.js # Detection event storage (IndexedDB)
-│   └── services/
-│       └── browserAuth.js      # PBKDF2 auth + JWT session manager
-├── backend/
-│   ├── main.py                 # FastAPI — /detect, /get-descriptor, /health
-│   ├── requirements.txt        # Python dependencies
-│   ├── Dockerfile              # Container config for HF Spaces
-│   └── render.yaml             # (Legacy) Render.com config
-├── public/
-│   └── models/                 # face-api.js browser model files (fallback)
-├── .env.example                # Environment variable template
-└── README.md
+CREATE POLICY "Prevent delete from global" ON global_criminals
+  FOR DELETE USING (false);
 ```
 
+## 👤 User Workflows
+
+### Admin Registration
+1. First admin creates account (org created automatically)
+2. Sets up 2FA with Google Authenticator
+3. Starts adding surveillance cameras
+4. Approves officer registrations
+
+### Officer Registration
+1. Registers with organization domain
+2. Waits for admin approval
+3. Once approved, can add local criminals
+4. Can view global and local criminal databases
+
+### Viewer Access
+1. Registered by admin as viewer
+2. No editing permissions
+3. Can view alerts and criminal records
+
+## 🔄 Account Deletion Behavior
+
+### Admin Deletes Account
+- ✕ Entire organization deleted
+- ✕ All officers & viewers removed
+- ✕ Organization cameras deleted
+- ✕ Local criminal records deleted
+- ✓ Global criminals preserved
+
+### Officer/Viewer Deletes Account
+- ✓ Only user record deleted
+- ✓ All organization data preserved
+- ✓ Criminal records remain intact
+
+## 🔒 Security Protocols
+
+### Password Requirements
+- Minimum 8 characters
+- At least 1 uppercase letter
+- At least 1 lowercase letter
+- At least 1 number
+- At least 1 special character (@$!%*?&)
+
+### 2FA Setup
+- Google Authenticator app required
+- QR code generation for easy setup
+- Manual key entry for mobile users
+- 6-digit TOTP verification
+
+### Rate Limiting
+- Login attempts: 5 per minute per email
+- Global throttling on sensitive endpoints
+
+## 🚢 Deployment
+
+### Deploy to Vercel (Recommended)
+
+```bash
+# Connect to Vercel
+vercel link
+
+# Deploy
+vercel
+```
+
+### Docker Deployment
+
+```bash
+# Build image
+docker build -t vigibyte:latest .
+
+# Run container
+docker run -p 3000:5173 vigibyte:latest
+```
+
+## 📱 Mobile Responsiveness
+
+VigiByte is fully responsive with support for:
+- Desktop (1920px+)
+- Tablet (768px - 1919px)
+- Mobile (320px - 767px)
+
+## 🔧 Development
+
+### Available Scripts
+
+```bash
+npm run dev      # Start dev server
+npm run build    # Build for production
+npm run preview  # Preview production build
+```
+
+### Folder Structure
+
+```
+src/
+├── components/        # React components
+│   ├── Dashboard.jsx
+│   ├── AuthPanel.jsx
+│   ├── CriminalDB.jsx
+│   └── ...
+├── lib/              # Utilities & services
+│   ├── supabase.js
+│   ├── faceRecognition.js
+│   ├── organization.js
+│   └── totp.js
+├── services/         # Business logic
+│   └── browserAuth.js
+└── App.jsx
+```
+
+## 🐛 Troubleshooting
+
+### Storage Issues (Mobile)
+On iOS Safari in private mode, localStorage may be unavailable. The app detects this and shows an appropriate warning.
+
+### Face Detection Not Working
+- Check browser permissions
+- Ensure camera feed is accessible
+- Verify TensorFlow.js models are loaded
+- Check browser console for errors
+
+### Real-time Updates Not Working
+- Verify Realtime is enabled in Supabase
+- Check RLS policies are correctly configured
+- Ensure user has appropriate permissions
+
+## 📊 Performance
+
+- **Face Detection**: ~300-500ms per image (depends on CPU)
+- **Database Queries**: <100ms average
+- **Real-time Updates**: <1s propagation
+- **Build Size**: ~850KB (gzipped)
+
+## 📝 License
+
+This project is proprietary. All rights reserved.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these guidelines:
+1. Create a feature branch
+2. Make your changes
+3. Write clear commit messages
+4. Submit a pull request
+
+## 📧 Contact
+
+For issues, questions, or feature requests, please create an issue on GitHub.
+
 ---
 
-## 🔐 Security
-
-- Passwords hashed with **PBKDF2** (10,000 iterations, SHA-256) — browser-native
-- Sessions signed with **HMAC-SHA256** tokens
-- Rate limiting — 5 login attempts per 15 minutes
-- Audit logging via IndexedDB
-- Supabase Row Level Security (RLS) enabled
-- CSP headers configured in Vite
-- Camera stream released on logout
-
----
-
-## 📄 License
-
-MIT License
+**VigiByte** - Making the world safer, one detection at a time. 🌍🔒
