@@ -43,6 +43,7 @@ export default function Dashboard({ user, onLogout }) {
   // Officers Management (Admin Only)
   const [pendingOfficers, setPendingOfficers] = useState([])
   const [approvedOfficers, setApprovedOfficers] = useState([])
+  const [isApproved, setIsApproved] = useState(false)
 
   /**
    * SYSTEM HEALTH CHECK
@@ -93,6 +94,7 @@ export default function Dashboard({ user, onLogout }) {
         }, () => {
           loadCameras();
           loadCriminals();
+          setIsApproved(true);
         })
         .subscribe();
       subscriptions.push(channel);
@@ -111,12 +113,46 @@ export default function Dashboard({ user, onLogout }) {
         })
         .subscribe();
       subscriptions.push(channelDelete);
+
+      // Polling fallback: Check approval status every 2 seconds
+      const pollInterval = setInterval(async () => {
+        // Check if user still exists (rejection detection)
+        const { data: userExists } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
+        if (!userExists || userExists.length === 0) {
+          onLogout();
+          window.location.href = '/register';
+          return;
+        }
+
+        // Check approval status
+        const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', user?.id).eq('organization_id', user?.organization_id);
+        const nowApproved = approved && approved.length > 0;
+
+        if (nowApproved && !isApproved) {
+          // Just got approved
+          setIsApproved(true);
+          loadCameras();
+          loadCriminals();
+        } else if (!nowApproved && isApproved) {
+          // Just got revoked
+          setIsApproved(false);
+          loadCameras();
+          loadCriminals();
+        }
+      }, 2000);
+      subscriptions.push(pollInterval);
     }
 
     return () => {
-      subscriptions.forEach(sub => scopedSupabase.removeChannel(sub));
+      subscriptions.forEach(sub => {
+        if (typeof sub === 'number') {
+          clearInterval(sub);
+        } else {
+          scopedSupabase.removeChannel(sub);
+        }
+      });
     };
-  }, [user?.id])
+  }, [user?.id, isApproved])
 
   // Fetches suspect records from the cloud database
   async function loadCriminals() {
