@@ -192,6 +192,21 @@ export default function Dashboard({ user, onLogout }) {
             await loadCameras();
             await loadCriminals();
           }
+          // If approval status changed from approved to NOT approved (revoked)
+          else if (lastApprovalState && !isNowApproved) {
+            console.log('🔴 REVOCATION DETECTED via polling - Clearing data...');
+            setIsApproved(false);
+            setCameras([]);
+            setCriminals([]);
+            setGlobalAlerts([]);
+            releaseAllStreams();
+            // Show notification briefly then redirect
+            setTimeout(() => {
+              localStorage.setItem('vigibyte_show_register', 'true');
+              onLogout();
+              window.location.href = '/';
+            }, 1500);
+          }
 
           lastApprovalState = isNowApproved;
         } catch (err) {
