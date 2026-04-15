@@ -17,13 +17,10 @@ import { supabase, createScopedClient } from '../lib/supabase'
 export default function Dashboard({ user, onLogout }) {
   const scopedSupabase = createScopedClient(user?.id)
 
-  // --- STATE MANAGEMENT --- 
-  
-  // Camera Nodes: Persisted in localStorage for consistent sessions
-  const [cameras, setCameras] = useState(() => {
-    const saved = localStorage.getItem('security_cameras')
-    return saved ? JSON.parse(saved) : [{ id: 'cam-1', name: 'ENTRY_CAM_01', location: 'Main Entrance', coordinates: '28.61, 77.20', source: 'webcam', type: 'webcam' }]
-  })
+  // --- STATE MANAGEMENT ---
+
+  // Camera Nodes: Persisted in Supabase per-user
+  const [cameras, setCameras] = useState([])
   
   const [selectedCamera, setSelectedCamera] = useState(null) // Currently focused camera in 'Inspector' mode
 
@@ -72,17 +69,23 @@ export default function Dashboard({ user, onLogout }) {
     return () => clearInterval(interval);
   }, [])
 
-  // Initial Load: Pre-load AI models and sync criminal registry
-  useEffect(() => { 
-    loadModels(); 
-    loadCriminals(); 
-    localStorage.setItem('security_cameras', JSON.stringify(cameras)) 
-  }, [cameras])
+  // Initial Load: Pre-load AI models and sync camera registry + criminal registry
+  useEffect(() => {
+    loadModels();
+    loadCameras();
+    loadCriminals();
+  }, [user?.id])
 
   // Fetches suspect records from the cloud database
-  async function loadCriminals() { 
-    const { data } = await scopedSupabase.from('criminals').select('*').eq('user_id', user?.id); 
-    setCriminals(data || []) 
+  async function loadCriminals() {
+    const { data } = await scopedSupabase.from('criminals').select('*').eq('user_id', user?.id);
+    setCriminals(data || [])
+  }
+
+  // Fetches camera nodes from the cloud database scoped to current user
+  async function loadCameras() {
+    const { data } = await scopedSupabase.from('cameras').select('*').eq('user_id', user?.id);
+    setCameras(data || []);
   }
 
   /**
@@ -124,18 +127,42 @@ export default function Dashboard({ user, onLogout }) {
     })
   }, [])
 
-  // Adds a new camera node to the surveillance grid
-  const handleAddCamera = (data) => { 
-    setCameras(prev => [...prev, { id: `cam-${Date.now()}`, ...data, status: 'ONLINE' }]); 
-    setShowAddModal(false); 
+  // Adds a new camera node to the surveillance grid and syncs to Supabase
+  const handleAddCamera = async (data) => {
+    const newCamera = {
+      id: `cam-${Date.now()}`,
+      ...data,
+      status: 'ONLINE',
+      user_id: user?.id
+    };
+
+    const { error } = await scopedSupabase.from('cameras').insert([newCamera]);
+
+    if (error) {
+      console.error('Error adding camera:', error);
+      alert('Failed to add camera');
+      return;
+    }
+
+    setCameras(prev => [...prev, newCamera]);
+    setShowAddModal(false);
   }
   
-  // Removes a camera node and performs UI cleanup
-  const handleDeleteCamera = (id, e) => { 
-    e.stopPropagation(); 
-    releaseStream(id)
-    setCameras(prev => prev.filter(c => c.id !== id)); 
-    if (selectedCamera?.id === id) setSelectedCamera(null); 
+  // Removes a camera node from Supabase and performs UI cleanup
+  const handleDeleteCamera = async (id, e) => {
+    e.stopPropagation();
+    releaseStream(id);
+
+    const { error } = await scopedSupabase.from('cameras').delete().eq('id', id);
+
+    if (error) {
+      console.error('Error deleting camera:', error);
+      alert('Failed to delete camera');
+      return;
+    }
+
+    setCameras(prev => prev.filter(c => c.id !== id));
+    if (selectedCamera?.id === id) setSelectedCamera(null);
   }
 
   return (

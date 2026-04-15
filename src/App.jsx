@@ -231,9 +231,18 @@ export default function App() {
     if (user) {
       await auditLogger.log('logout', user.id, user.email)
     }
-    
-    // Systematic removal of session data and hardware stream release
-    releaseStream('cam-1')
+
+    // Release all active camera streams
+    try {
+      const cameraData = storage.get('security_cameras')
+      if (cameraData) {
+        const savedCameras = JSON.parse(cameraData)
+        savedCameras.forEach(cam => releaseStream(cam.id))
+      }
+    } catch(e) {
+      console.warn('Error releasing cameras on logout:', e)
+    }
+
     storage.remove('vigibyte_token')
     storage.remove('vigibyte_user')
     setUser(null)
