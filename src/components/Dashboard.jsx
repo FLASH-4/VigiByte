@@ -135,11 +135,12 @@ export default function Dashboard({ user, onLogout }) {
             loadCameras();
             loadCriminals();
           } else if (payload.eventType === 'DELETE') {
-            // Officer revoked - redirect to register
+            // Officer revoked - set flag to show register form
             console.log('🔴 REVOCATION DETECTED - Redirecting to register');
             releaseAllStreams();
+            localStorage.setItem('vigibyte_show_register', 'true');
             onLogout();
-            window.location.href = '/register';
+            window.location.href = '/';
           }
         })
         .subscribe();
@@ -156,8 +157,9 @@ export default function Dashboard({ user, onLogout }) {
           if (payload.old.id === user?.id) {
             console.log('🔴 DELETE DETECTED - User deleted by admin, redirecting to register');
             releaseAllStreams();
+            localStorage.setItem('vigibyte_show_register', 'true');
             onLogout();
-            window.location.href = '/register';
+            window.location.href = '/';
           }
         })
         .subscribe();
@@ -173,8 +175,9 @@ export default function Dashboard({ user, onLogout }) {
             clearInterval(pollInterval);
             clearSubscriptions();
             releaseAllStreams();
+            localStorage.setItem('vigibyte_show_register', 'true');
             onLogout();
-            window.location.href = '/register';
+            window.location.href = '/';
             return;
           }
         } catch (err) {

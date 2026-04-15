@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Lock, AlertCircle, Eye, EyeOff, Shield, LogOut, Copy, Check } from 'lucide-react'
 
 /**
@@ -15,6 +15,15 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
   const [showPassword, setShowPassword] = useState(false)
   const [totpCode, setTotpCode] = useState('')
   const [copied, setCopied] = useState(false)
+
+  // Check if user was rejected and should see register form
+  useEffect(() => {
+    const showRegister = localStorage.getItem('vigibyte_show_register');
+    if (showRegister === 'true') {
+      setIsLogin(false);
+      localStorage.removeItem('vigibyte_show_register');
+    }
+  }, [])
 
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
