@@ -185,7 +185,7 @@ export default function Dashboard({ user, onLogout }) {
                 <GridNode camera={cam} criminals={criminals} onUpdate={handleGlobalUpdate} />
                 <div className="absolute bottom-0 inset-x-0 bg-slate-950/90 px-3 py-2 text-[9px] font-bold uppercase text-slate-300 border-t border-white/5 truncate">{cam.name}</div>
               </button>
-              {user?.role === 'admin' && <button onClick={(e) => handleDeleteCamera(cam.id, e)} className="absolute -top-2 -right-2 bg-slate-800 text-slate-400 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-600 hover:text-white border border-white/10 z-20 shadow-xl"><X size={10} /></button>}
+              {user?.role === 'admin' && <button onClick={(e) => handleDeleteCamera(cam.id, e)} className="absolute -top-2 -right-2 bg-slate-800 text-slate-400 rounded-full p-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-all hover:bg-red-600 hover:text-white border border-white/10 z-20 shadow-xl"><X size={10} /></button>}
             </div>
           ))}
         </div>
