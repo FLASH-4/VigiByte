@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "project": {
+    "functions": [
+      {
+        "slug": "create-organization",
+        "importmap_path": "functions/create-organization/deno.json"
+      }
+    ]
+  }
+}
