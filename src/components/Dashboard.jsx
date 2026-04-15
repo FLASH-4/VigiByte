@@ -117,14 +117,15 @@ export default function Dashboard({ user, onLogout }) {
         .on('postgres_changes', {
           event: 'DELETE',
           schema: 'public',
-          table: 'users',
-          filter: `id=eq.${user?.id}`
-        }, () => {
-          // Account was deleted/rejected - redirect to register
-          console.log('Real-time: User deleted - showing alert and redirecting');
-          alert('❌ Your registration was not approved by the admin. Please register again.');
-          onLogout();
-          window.location.href = '/register';
+          table: 'users'
+        }, (payload) => {
+          // Check if it's the current user being deleted
+          if (payload.old.id === user?.id) {
+            console.log('Real-time: Current user deleted - showing alert and redirecting');
+            alert('❌ Your registration was not approved by the admin. Please register again.');
+            onLogout();
+            window.location.href = '/register';
+          }
         })
         .subscribe();
       subscriptions.push(channelDelete);
@@ -310,6 +311,7 @@ export default function Dashboard({ user, onLogout }) {
           throw deleteError;
         }
         console.log('Officer deleted successfully');
+        alert('✅ Officer request rejected and account deleted');
       } else {
         // If approved, just remove approval
         console.log('Revoking approved officer:', officerId);
@@ -319,12 +321,14 @@ export default function Dashboard({ user, onLogout }) {
           throw error;
         }
         console.log('Officer revoked successfully');
+        alert('✅ Officer access revoked');
       }
 
+      // Refresh the officers list immediately
       await loadOfficers();
     } catch (err) {
       console.error('Error removing officer:', err);
-      alert('Error: ' + err.message);
+      alert('❌ Error: ' + err.message);
     }
   }
 
