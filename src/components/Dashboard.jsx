@@ -16,6 +16,7 @@ import { supabase, createScopedClient } from '../lib/supabase'
  */
 export default function Dashboard({ user, onLogout }) {
   const scopedSupabase = createScopedClient(user?.id)
+  const profileMenuRef = useRef(null)
 
   // --- STATE MANAGEMENT ---
 
@@ -45,6 +46,20 @@ export default function Dashboard({ user, onLogout }) {
   useEffect(() => {
     document.body.style.overflow = selectedCamera ? 'hidden' : '';
   }, [selectedCamera])
+
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
+    }
+
+    if (showProfileMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showProfileMenu])
 
   // Cleanup camera when revoked
   useEffect(() => {
@@ -125,13 +140,16 @@ export default function Dashboard({ user, onLogout }) {
             console.log('Real-time: Current user deleted - showing alert and redirecting');
             alert('❌ Your registration was not approved by the admin. Please register again.');
             onLogout();
-            window.location.href = '/register';
+            // Ensure immediate redirect
+            setTimeout(() => {
+              window.location.href = '/register';
+            }, 50);
           }
         })
         .subscribe();
       subscriptions.push(channelDelete);
 
-      // Polling fallback: Check approval status every 500ms for faster rejection detection
+      // Polling fallback: Check approval status every 300ms for faster rejection detection
       const pollInterval = setInterval(async () => {
         try {
           // Check if user still exists (rejection detection)
@@ -141,7 +159,10 @@ export default function Dashboard({ user, onLogout }) {
             clearInterval(pollInterval);
             alert('❌ Your registration was not approved by the admin. Please register again.');
             onLogout();
-            window.location.href = '/register';
+            // Ensure redirect happens immediately before any page reload
+            setTimeout(() => {
+              window.location.href = '/register';
+            }, 100);
             return;
           }
 
@@ -163,7 +184,7 @@ export default function Dashboard({ user, onLogout }) {
         } catch (err) {
           console.error('Polling error:', err);
         }
-      }, 500);
+      }, 300);
       subscriptions.push(pollInterval);
     } else if (user?.role === 'admin') {
       // Admin: Listen for new officer registrations - no filter for INSERT
@@ -339,7 +360,6 @@ export default function Dashboard({ user, onLogout }) {
         console.log('Officer deleted successfully');
         // Remove from pending list immediately in UI
         setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
-        alert('✅ Officer request rejected and account deleted');
       } else {
         // If approved, just remove approval
         console.log('Revoking approved officer:', officerId);
@@ -351,14 +371,12 @@ export default function Dashboard({ user, onLogout }) {
         console.log('Officer revoked successfully');
         // Remove from approved list immediately in UI
         setApprovedOfficers(prev => prev.filter(o => o.id !== officerId));
-        alert('✅ Officer access revoked');
       }
 
       // Also refresh from database to ensure consistency
       await loadOfficers();
     } catch (err) {
       console.error('Error removing officer:', err);
-      alert('❌ Error: ' + err.message);
     }
   }
 
@@ -493,7 +511,7 @@ export default function Dashboard({ user, onLogout }) {
         </div>
         <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
           {user?.role === 'admin' && <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-5 py-1.5 sm:py-2.5 rounded-lg text-[9px] sm:text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 border border-blue-400/20 whitespace-nowrap"><span className="hidden sm:inline">+ Add Node</span><span className="sm:hidden">+</span></button>}
-          <div className="flex items-center gap-1 sm:gap-2 pl-2 sm:pl-4 border-l border-white/10 relative">
+          <div className="flex items-center gap-1 sm:gap-2 pl-2 sm:pl-4 border-l border-white/10 relative" ref={profileMenuRef}>
             <div className="text-right">
               <p className="text-[8px] sm:text-[9px] font-bold text-white truncate max-w-[70px] sm:max-w-[100px]">{user?.email}</p>
               <p className="text-[7px] sm:text-[8px] text-slate-400 uppercase tracking-widest mt-0.5">{user?.role === 'admin' ? '🔑 ADMIN' : user?.role === 'officer' ? '👮 OFFICER' : '👁️ VIEWER'}</p>
@@ -567,7 +585,7 @@ export default function Dashboard({ user, onLogout }) {
               {user?.role !== 'viewer' && <TabBtn active={activeTab === 'database'} label="DATABASE" onClick={() => setActiveTab('database')} icon={<Database size={14}/>} />}
               {user?.role === 'admin' && <TabBtn active={activeTab === 'officers'} label="OFFICERS" onClick={() => setActiveTab('officers')} icon={<Shield size={14}/>} />}
             </div>
-            <div className="p-4 sm:p-8 h-[530px] overflow-y-auto custom-scrollbar">
+            <div className="p-4 sm:p-8 h-[530px] overflow-y-auto scrollbar-hide">
                 {activeTab === 'alerts' ? (
                   <AlertPanel alerts={globalAlerts} onViewImage={setViewingImageUrl} />
                 ) : activeTab === 'officers' ? (
