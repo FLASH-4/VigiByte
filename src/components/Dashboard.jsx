@@ -127,10 +127,17 @@ export default function Dashboard({ user, onLogout }) {
           schema: 'public',
           table: 'approved_officers',
           filter: `user_id=eq.${user?.id}`
-        }, () => {
-          loadCameras();
-          loadCriminals();
-          setIsApproved(true);
+        }, (payload) => {
+          console.log('👮 Approval status changed:', payload.eventType);
+          if (payload.eventType === 'INSERT') {
+            // Officer approved
+            setIsApproved(true);
+            loadCameras();
+            loadCriminals();
+          } else if (payload.eventType === 'DELETE') {
+            // Officer revoked
+            setIsApproved(false);
+          }
         })
         .subscribe();
       subscriptions.push(channel);
@@ -147,9 +154,6 @@ export default function Dashboard({ user, onLogout }) {
             console.log('🔴 DELETE DETECTED - User deleted by admin');
             releaseAllStreams();
             onLogout();
-            setTimeout(() => {
-              window.location.replace('/register');
-            }, 50);
           }
         })
         .subscribe();
@@ -165,11 +169,7 @@ export default function Dashboard({ user, onLogout }) {
             clearInterval(pollInterval);
             clearSubscriptions();
             releaseAllStreams();
-
-            setTimeout(() => {
-              onLogout();
-              window.location.href = '/register';
-            }, 100);
+            onLogout();
             return;
           }
         } catch (err) {
