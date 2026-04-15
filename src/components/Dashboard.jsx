@@ -193,7 +193,7 @@ export default function Dashboard({ user, onLogout }) {
 
     if (error) {
       console.error('Error adding camera:', error);
-      alert('Failed to add camera');
+      alert(`Failed to add camera: ${error.message}`);
       return;
     }
 
