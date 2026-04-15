@@ -119,6 +119,7 @@ export default function Dashboard({ user, onLogout }) {
         // Check if user still exists (rejection detection)
         const { data: userExists } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
         if (!userExists || userExists.length === 0) {
+          alert('❌ Your registration was not approved by the admin. Please register again.');
           onLogout();
           window.location.href = '/register';
           return;
@@ -240,17 +241,28 @@ export default function Dashboard({ user, onLogout }) {
 
       // If pending, delete their user account entirely
       if (isPending) {
+        console.log('Rejecting pending officer:', officerId);
         const { error: deleteError } = await scopedSupabase.from('users').delete().eq('id', officerId);
-        if (deleteError) throw deleteError;
+        if (deleteError) {
+          console.error('Delete error:', deleteError);
+          throw deleteError;
+        }
+        console.log('Officer deleted successfully');
       } else {
         // If approved, just remove approval
+        console.log('Revoking approved officer:', officerId);
         const { error } = await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId).eq('organization_id', user?.organization_id);
-        if (error) throw error;
+        if (error) {
+          console.error('Revoke error:', error);
+          throw error;
+        }
+        console.log('Officer revoked successfully');
       }
 
       await loadOfficers();
     } catch (err) {
       console.error('Error removing officer:', err);
+      alert('Error: ' + err.message);
     }
   }
 
