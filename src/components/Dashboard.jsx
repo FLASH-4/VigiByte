@@ -157,11 +157,10 @@ export default function Dashboard({ user, onLogout }) {
           if (payload.old.id === user?.id) {
             console.log('🔴 DELETE DETECTED - User rejected by admin');
             releaseAllStreams();
-            localStorage.setItem('vigibyte_show_register', 'true');
-            // Delay redirect to allow modal to display
+            // Delay redirect to allow data to clear
             setTimeout(() => {
               onLogout();
-              window.location.href = '/';
+              window.location.href = '/?rejected=true';
             }, 1000);
           }
         })
@@ -213,12 +212,11 @@ export default function Dashboard({ user, onLogout }) {
             clearInterval(pollInterval);
             clearSubscriptions();
             releaseAllStreams();
-            localStorage.setItem('vigibyte_show_register', 'true');
-            // Delay redirect to allow modal to display
+            // Delay redirect to allow data to clear
             setTimeout(() => {
               onLogout();
-              window.location.href = '/';
-            }, 1000);
+              window.location.href = '/?rejected=true';
+            }, 500);
             return;
           }
         } catch (err) {

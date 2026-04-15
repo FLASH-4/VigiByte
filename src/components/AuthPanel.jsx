@@ -16,13 +16,14 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
   const [totpCode, setTotpCode] = useState('')
   const [copied, setCopied] = useState(false)
 
-  // Check if user was rejected and should show register form
+  // Check if user was rejected via query param
   useEffect(() => {
-    const showRegister = localStorage.getItem('vigibyte_show_register');
-    if (showRegister === 'true') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('rejected') === 'true') {
       setIsLogin(false);
       setError('Your application was rejected by admin. Please register again.');
-      localStorage.removeItem('vigibyte_show_register');
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [])
 
