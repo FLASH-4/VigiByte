@@ -48,6 +48,7 @@ export default function Dashboard({ user, onLogout }) {
   const [approvedOfficers, setApprovedOfficers] = useState([])
   const [isApproved, setIsApproved] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   // Effect to prevent background scrolling when the Inspector Modal is active
   useEffect(() => {
@@ -454,9 +455,6 @@ export default function Dashboard({ user, onLogout }) {
 
   // Delete current user account
   async function handleDeleteAccount() {
-    const confirmDelete = window.confirm('⚠️ Are you sure you want to delete your account? This action cannot be undone.');
-    if (!confirmDelete) return;
-
     try {
       // If admin, delete all organization data first
       if (user?.role === 'admin') {
@@ -482,9 +480,8 @@ export default function Dashboard({ user, onLogout }) {
       if (userError) throw userError;
 
       console.log('User account deleted successfully');
-      alert('✅ Your account has been deleted');
+      setShowDeleteModal(false);
       onLogout();
-      window.location.href = '/register';
     } catch (err) {
       console.error('Error deleting account:', err);
       alert('❌ Error deleting account: ' + err.message);
@@ -601,7 +598,7 @@ export default function Dashboard({ user, onLogout }) {
               <div className="absolute top-12 right-0 bg-[#0c101f] border border-white/10 rounded-lg shadow-lg z-50 min-w-max">
                 <button
                   onClick={() => {
-                    handleDeleteAccount();
+                    setShowDeleteModal(true);
                     setShowProfileMenu(false);
                   }}
                   className="w-full text-left px-4 py-3 text-red-400 hover:bg-red-600/10 text-[12px] font-bold uppercase tracking-widest transition-colors border-t border-white/5 first:border-t-0"
@@ -782,6 +779,48 @@ export default function Dashboard({ user, onLogout }) {
       )}
 
       {showAddModal && <AddNodeModal onAdd={handleAddCamera} onClose={() => setShowAddModal(false)} />}
+
+      {/* DELETE ACCOUNT CONFIRMATION MODAL */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center backdrop-blur-md bg-black/60 p-4">
+          <div className="bg-[#0c101f] rounded-3xl border border-red-500/30 p-8 max-w-md w-full shadow-2xl bg-gradient-to-br from-red-500/5 to-red-900/10">
+            <div className="flex items-center gap-3 mb-6">
+              <AlertCircle className="text-red-500" size={32} />
+              <h2 className="text-2xl font-bold text-white">Delete Account?</h2>
+            </div>
+
+            <div className="space-y-6">
+              <p className="text-slate-300">
+                This action will permanently delete your account and all associated data. This cannot be undone.
+              </p>
+
+              {user?.role === 'admin' && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                  <p className="text-sm text-red-200 font-semibold mb-2">⚠️ Admin Account</p>
+                  <p className="text-xs text-red-300">
+                    Deleting your admin account will also remove all organization data including cameras, criminals database, and officer records.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleDeleteAccount}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold uppercase text-sm transition-all"
+                >
+                  Delete Account
+                </button>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold uppercase text-sm transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
