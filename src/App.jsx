@@ -191,14 +191,14 @@ export default function App() {
       } else {
         // --- LOGIN WORKFLOW ---
         const foundUser = users.find(u => u.email === email)
-        
+
         if (!foundUser) {
           await auditLogger.log('login_failed', 'unknown', email, { reason: 'user_not_found' })
           throw new Error('Invalid email or password')
         }
 
         // CRYPTOGRAPHIC COMPARISON: Verify input against the derived PBKDF2 hash
-        const passwordMatch = await comparePasswords(password, foundUser.passwordHash)
+        const passwordMatch = await comparePasswords(password, foundUser.password_hash)
         if (!passwordMatch) {
           await auditLogger.log('login_failed', foundUser.id, email, { reason: 'wrong_password' })
           throw new Error('Invalid email or password')
@@ -212,9 +212,9 @@ export default function App() {
           email: foundUser.email,
           role: foundUser.role
         }))
-        
+
         setUser({ id: foundUser.id, email: foundUser.email, role: foundUser.role })
-        
+
         await auditLogger.log('login_success', foundUser.id, foundUser.email)
         loginLimiter.reset(`login_${email}`)
       }
