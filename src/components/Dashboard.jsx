@@ -342,46 +342,62 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
-  // Reject/remove an officer
+  // Reject/remove an officer - REWRITTEN
   async function handleRemoveOfficer(officerId) {
     try {
-      // Check if officer is pending (not approved)
       const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', officerId).eq('organization_id', user?.organization_id);
       const isPending = !approved || approved.length === 0;
 
       if (isPending) {
-        console.log('Rejecting pending officer:', officerId);
+        // PENDING OFFICER - DELETE FROM DATABASE
+        console.log('🔴 REJECTING officer:', officerId);
 
-        // Immediately remove from UI first
+        // Step 1: Remove from UI immediately
         setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
 
-        // Delete from database with better error handling
-        const { data, error: deleteError } = await supabase
+        // Step 2: Delete from users table using admin supabase client
+        const { data: deletedUser, error: deleteError } = await supabase
           .from('users')
           .delete()
           .eq('id', officerId)
           .select();
 
         if (deleteError) {
-          console.error('Delete error:', deleteError);
-          // Restore UI if deletion failed
+          console.error('❌ Delete failed:', deleteError);
+          setPendingOfficers(prev => [...prev]); // Revert UI
           await loadOfficers();
           return;
         }
 
-        console.log('Officer deleted from database:', data);
+        console.log('✅ Officer deleted:', deletedUser);
+
+        // Step 3: Reload list after short delay to ensure DB is updated
+        setTimeout(() => loadOfficers(), 200);
+
       } else {
-        // If approved, remove approval
-        console.log('Revoking approved officer:', officerId);
-        const { error: revokeError } = await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId).eq('organization_id', user?.organization_id);
+        // APPROVED OFFICER - REVOKE APPROVAL
+        console.log('🔴 REVOKING officer:', officerId);
+
+        setApprovedOfficers(prev => prev.filter(o => o.id !== officerId));
+
+        const { error: revokeError } = await scopedSupabase
+          .from('approved_officers')
+          .delete()
+          .eq('user_id', officerId)
+          .eq('organization_id', user?.organization_id);
+
         if (revokeError) {
-          console.error('Revoke error:', revokeError);
+          console.error('❌ Revoke failed:', revokeError);
+          await loadOfficers();
           return;
         }
-        setApprovedOfficers(prev => prev.filter(o => o.id !== officerId));
+
+        console.log('✅ Officer revoked');
+        setTimeout(() => loadOfficers(), 200);
       }
     } catch (err) {
-      console.error('Error:', err);
+      console.error('❌ Error in handleRemoveOfficer:', err);
+      await loadOfficers();
     }
   }
 

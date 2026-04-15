@@ -11,6 +11,17 @@
    Custom global overrides or @layer directives can be added below this import.
 */
 
+/* Hide ALL scrollbars globally */
+html, body {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
 /* Hide scrollbars while keeping scroll functionality */
 .scrollbar-hide {
   -ms-overflow-style: none;  /* IE and Edge */
