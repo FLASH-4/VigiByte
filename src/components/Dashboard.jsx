@@ -868,7 +868,6 @@ export default function Dashboard({ user, onLogout }) {
                 </button>
               </div>
             </div>
-            </div>
           </div>
         </div>
       )}
