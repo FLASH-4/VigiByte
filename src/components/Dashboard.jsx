@@ -64,7 +64,7 @@ export default function Dashboard({ user, onLogout }) {
   // Cleanup camera when revoked
   useEffect(() => {
     if (user?.role !== 'admin' && !isApproved) {
-      console.log('Revoking access - stopping all camera streams');
+      console.log('🔴 REVOCATION DETECTED - Stopping all streams');
       releaseAllStreams(); // Stop ALL active streams
       setSelectedCamera(null);
       setCameras([]);
@@ -137,12 +137,11 @@ export default function Dashboard({ user, onLogout }) {
         }, (payload) => {
           // Check if it's the current user being deleted
           if (payload.old.id === user?.id) {
-            console.log('Real-time: Current user deleted - showing alert and redirecting');
-            alert('❌ Your registration was not approved by the admin. Please register again.');
+            console.log('🔴 DELETE DETECTED - User deleted by admin');
+            releaseAllStreams();
             onLogout();
-            // Ensure immediate redirect
             setTimeout(() => {
-              window.location.href = '/register';
+              window.location.replace('/register');
             }, 50);
           }
         })
@@ -152,25 +151,33 @@ export default function Dashboard({ user, onLogout }) {
       // Polling fallback: Check approval status every 300ms for faster rejection detection
       const pollInterval = setInterval(async () => {
         try {
-          // Check if user still exists (rejection detection)
-          const { data: userExists, error } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
+          const { data: userExists } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
 
           if (!userExists || userExists.length === 0) {
-            console.log('⚠️ REJECTION DETECTED - User not found in database');
+            console.log('⚠️ REJECTION DETECTED');
             clearInterval(pollInterval);
+            clearSubscriptions();
+            releaseAllStreams();
 
-            alert('❌ Your registration was not approved by the admin. Please register again.');
-            onLogout();
-
-            // Force redirect
-            console.log('🔴 Redirecting to register...');
-            window.location.href = '/register';
+            setTimeout(() => {
+              alert('❌ Your registration was not approved by the admin. Please register again.');
+              onLogout();
+              window.location.replace('/register');
+            }, 100);
             return;
           }
         } catch (err) {
-          console.error('Polling error:', err);
+          console.error('Poll error:', err);
         }
       }, 300);
+
+      function clearSubscriptions() {
+        subscriptions.forEach(sub => {
+          if (typeof sub === 'number') clearInterval(sub);
+          else scopedSupabase.removeChannel(sub);
+        });
+      }
+
       subscriptions.push(pollInterval);
     } else if (user?.role === 'admin') {
       // Admin: Listen for new officer registrations - no filter for INSERT
