@@ -461,16 +461,20 @@ export default function Dashboard({ user, onLogout }) {
         console.log('Admin account deletion - removing all organization data...');
 
         // Delete all cameras in organization
-        const { error: camerasError } = await scopedSupabase.from('cameras').delete().eq('organization_id', user?.organization_id);
+        const { error: camerasError } = await supabaseAdmin.from('cameras').delete().eq('organization_id', user?.organization_id);
         if (camerasError) throw camerasError;
 
         // Delete all criminals in organization
-        const { error: criminalsError } = await scopedSupabase.from('criminals').delete().eq('organization_id', user?.organization_id);
+        const { error: criminalsError } = await supabaseAdmin.from('criminals').delete().eq('organization_id', user?.organization_id);
         if (criminalsError) throw criminalsError;
 
         // Delete all approved officers records
-        const { error: approvalsError } = await scopedSupabase.from('approved_officers').delete().eq('organization_id', user?.organization_id);
+        const { error: approvalsError } = await supabaseAdmin.from('approved_officers').delete().eq('organization_id', user?.organization_id);
         if (approvalsError) throw approvalsError;
+
+        // Delete the organization
+        const { error: orgError } = await supabaseAdmin.from('organizations').delete().eq('id', user?.organization_id);
+        if (orgError) throw orgError;
 
         console.log('Organization data deleted successfully');
       }
