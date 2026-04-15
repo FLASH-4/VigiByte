@@ -94,8 +94,8 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
   // --- 2FA SETUP VIEW ---
   if (needsTOTP === true && qrCodeURL && pendingUser) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4">
-        <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-6 sm:p-8 max-w-md w-full shadow-2xl animate-in max-h-[90vh] overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4 overflow-hidden">
+        <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-6 sm:p-8 max-w-md w-full shadow-2xl animate-in">
           <div className="flex items-center gap-3 mb-6">
             <Shield className="text-yellow-500" size={28} />
             <h1 className="text-xl sm:text-2xl font-bold text-white">Setup 2FA Security</h1>
@@ -162,7 +162,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
   // --- 2FA VERIFICATION VIEW (Login) ---
   if (needsTOTP === false && pendingUser) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4 overflow-hidden">
         <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-6 sm:p-8 max-w-md w-full shadow-2xl animate-in">
           <div className="flex items-center gap-3 mb-6">
             <Lock className="text-green-500" size={28} />
@@ -252,8 +252,8 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
 
   // --- AUTHENTICATION FORM VIEW ---
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4">
-      <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-6 sm:p-8 max-w-md w-full shadow-2xl animate-in max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-black/40 p-4 overflow-hidden">
+      <div className="bg-[#0c101f] rounded-3xl border border-white/10 p-6 sm:p-8 max-w-md w-full shadow-2xl animate-in">
         <div className="flex items-center gap-3 mb-8">
           <Lock className="text-blue-500" size={28} />
           <h1 className="text-2xl font-bold text-white">VigiByte</h1>
