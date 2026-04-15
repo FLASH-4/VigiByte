@@ -134,18 +134,13 @@ export default function Dashboard({ user, onLogout }) {
             console.log('✅ APPROVAL DETECTED - Refreshing...');
             window.location.reload();
           } else if (payload.eventType === 'DELETE') {
-            // Officer revoked - clear data and redirect
+            // Officer revoked - just clear data, don't redirect
             console.log('🔴 REVOCATION DETECTED - Clearing data...');
             setIsApproved(false);
             setCameras([]);
             setCriminals([]);
             setGlobalAlerts([]);
             releaseAllStreams();
-            setTimeout(() => {
-              localStorage.setItem('vigibyte_show_register', 'true');
-              onLogout();
-              window.location.href = '/';
-            }, 500);
           }
         })
         .subscribe();
@@ -200,12 +195,6 @@ export default function Dashboard({ user, onLogout }) {
             setCriminals([]);
             setGlobalAlerts([]);
             releaseAllStreams();
-            // Show notification briefly then redirect
-            setTimeout(() => {
-              localStorage.setItem('vigibyte_show_register', 'true');
-              onLogout();
-              window.location.href = '/';
-            }, 1500);
           }
 
           lastApprovalState = isNowApproved;
