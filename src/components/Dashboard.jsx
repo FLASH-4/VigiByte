@@ -18,6 +18,13 @@ export default function Dashboard({ user, onLogout }) {
   const scopedSupabase = createScopedClient(user?.id)
   const profileMenuRef = useRef(null)
 
+  // Wrapper for logout to stop streams
+  const handleLogout = () => {
+    console.log('🔴 LOGOUT - Stopping all streams');
+    releaseAllStreams();
+    onLogout();
+  }
+
   // --- STATE MANAGEMENT ---
 
   // Camera Nodes: Persisted in Supabase per-user
@@ -335,41 +342,38 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
-  // Reject/remove an officer
+  // Reject/remove officer - SIMPLE & BULLETPROOF
   async function handleRemoveOfficer(officerId) {
-    console.log('=== REJECT STARTED ===', officerId);
-
     try {
-      const { data: approved } = await scopedSupabase
-        .from('approved_officers')
-        .select('*')
-        .eq('user_id', officerId)
-        .eq('organization_id', user?.organization_id);
+      console.log('🔴 REMOVE OFFICER:', officerId);
 
-      const isPending = !approved || approved.length === 0;
+      // Remove from UI immediately
+      setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
+      setApprovedOfficers(prev => prev.filter(o => o.id !== officerId));
 
-      if (isPending) {
-        console.log('Deleting pending officer...');
-        setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
+      // Delete using RPC with service role key (handles both auth.users and public.users)
+      const { error: rpcError } = await supabaseAdmin.rpc('delete_officer_account', {
+        officer_id: officerId
+      });
 
-        // Try RPC function first
-        const { error: rpcError } = await supabase.rpc('delete_officer_account', { officer_id: officerId });
-
-        if (rpcError) {
-          console.log('RPC failed, using direct delete:', rpcError);
-          const { error: dirError } = await supabaseAdmin.from('users').delete().eq('id', officerId);
-          if (dirError) console.error('Direct delete failed:', dirError);
+      if (rpcError) {
+        console.error('❌ RPC error:', rpcError);
+        // Fallback: Manual deletion if RPC fails
+        try {
+          await supabaseAdmin.from('users').delete().eq('id', officerId);
+          await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId);
+        } catch (fallbackErr) {
+          console.error('❌ Fallback delete also failed:', fallbackErr);
         }
-
-        console.log('✅ Deletion attempt completed');
-        setTimeout(() => loadOfficers(), 300);
-      } else {
-        console.log('Revoking approved officer...');
-        setApprovedOfficers(prev => prev.filter(o => o.id !== officerId));
-        const { error } = await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId);
-        if (error) console.error('Revoke error:', error);
-        setTimeout(() => loadOfficers(), 300);
       }
+
+      console.log('✅ Officer removed');
+
+      // Reload list after deletion propagates
+      setTimeout(async () => {
+        await loadOfficers();
+      }, 500);
+
     } catch (err) {
       console.error('Exception:', err);
       await loadOfficers();
@@ -535,7 +539,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
             )}
 
-            <button onClick={onLogout} className="p-1 sm:p-2 bg-red-600/10 hover:bg-red-600/20 text-red-500 hover:text-red-400 rounded transition-all border border-red-500/20 flex-shrink-0" title="Logout">
+            <button onClick={handleLogout} className="p-1 sm:p-2 bg-red-600/10 hover:bg-red-600/20 text-red-500 hover:text-red-400 rounded transition-all border border-red-500/20 flex-shrink-0" title="Logout">
               <LogOut size={14} className="sm:hidden" />
               <LogOut size={16} className="hidden sm:block" />
             </button>
