@@ -108,39 +108,60 @@ export default function Dashboard({ user, onLogout }) {
           filter: `id=eq.${user?.id}`
         }, () => {
           // Account was deleted/rejected - redirect to register
+          console.log('Real-time: User deleted - showing alert and redirecting');
+          alert('❌ Your registration was not approved by the admin. Please register again.');
           onLogout();
           window.location.href = '/register';
         })
         .subscribe();
       subscriptions.push(channelDelete);
 
-      // Polling fallback: Check approval status every 2 seconds
+      // Polling fallback: Check approval status every 1 second
       const pollInterval = setInterval(async () => {
-        // Check if user still exists (rejection detection)
-        const { data: userExists } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
-        if (!userExists || userExists.length === 0) {
-          alert('❌ Your registration was not approved by the admin. Please register again.');
-          onLogout();
-          window.location.href = '/register';
-          return;
-        }
+        try {
+          // Check if user still exists (rejection detection)
+          const { data: userExists } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
+          if (!userExists || userExists.length === 0) {
+            console.log('User deleted - showing alert and redirecting');
+            clearInterval(pollInterval);
+            alert('❌ Your registration was not approved by the admin. Please register again.');
+            onLogout();
+            window.location.href = '/register';
+            return;
+          }
 
-        // Check approval status
-        const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', user?.id).eq('organization_id', user?.organization_id);
-        const nowApproved = approved && approved.length > 0;
+          // Check approval status
+          const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', user?.id).eq('organization_id', user?.organization_id);
+          const nowApproved = approved && approved.length > 0;
 
-        if (nowApproved && !isApproved) {
-          // Just got approved
-          setIsApproved(true);
-          loadCameras();
-          loadCriminals();
-        } else if (!nowApproved && isApproved) {
-          // Just got revoked
-          setIsApproved(false);
-          loadCameras();
-          loadCriminals();
+          if (nowApproved && !isApproved) {
+            // Just got approved
+            console.log('User approved - loading data');
+            setIsApproved(true);
+            loadCameras();
+            loadCriminals();
+          } else if (!nowApproved && isApproved) {
+            // Just got revoked - stop camera and clear everything
+            console.log('User revoked - stopping camera and clearing data');
+            setIsApproved(false);
+            setSelectedCamera(null); // Close camera feed modal
+            setCameras([]); // Clear cameras
+            setCriminals([]); // Clear criminals
+            setGlobalAlerts([]); // Clear alerts
+            setDetectedCriminals([]); // Clear detected criminals
+            // Stop any active streams
+            if (selectedCamera) {
+              try {
+                releaseStream(selectedCamera.id);
+              } catch (err) {
+                console.error('Error releasing stream:', err);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Polling error:', err);
         }
-      }, 2000);
+      }, 1000);
       subscriptions.push(pollInterval);
     }
 
