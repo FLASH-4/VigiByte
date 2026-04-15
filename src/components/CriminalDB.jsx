@@ -143,6 +143,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
                   danger_level: (r.danger_level || r.Danger_Level || 'MEDIUM').toUpperCase(),
                   photo_url: r.Photo_URL || r.photo_url || null,
                   face_descriptor: face_descriptor,
+                  organization_id: user?.organization_id,
                   user_id: user?.id,
                 }
               }).filter(r => r.name || r.crime || r.photo_url)
@@ -249,6 +250,7 @@ export default function CriminalDB({ criminals, onRefresh, supabase, userRole = 
         danger_level: form.danger_level || 'MEDIUM',
         face_descriptor: descriptorArray,
         photo_url,
+        organization_id: user?.organization_id,
         user_id: user?.id,
       })
 

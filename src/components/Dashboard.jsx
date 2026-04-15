@@ -83,13 +83,13 @@ export default function Dashboard({ user, onLogout }) {
 
   // Fetches suspect records from the cloud database
   async function loadCriminals() {
-    const { data } = await scopedSupabase.from('criminals').select('*').eq('user_id', user?.id);
+    const { data } = await scopedSupabase.from('criminals').select('*').eq('organization_id', user?.organization_id);
     setCriminals(data || [])
   }
 
-  // Fetches camera nodes from the cloud database scoped to current user
+  // Fetches camera nodes from the cloud database scoped to current organization
   async function loadCameras() {
-    const { data } = await scopedSupabase.from('cameras').select('*').eq('user_id', user?.id);
+    const { data } = await scopedSupabase.from('cameras').select('*').eq('organization_id', user?.organization_id);
     setCameras(data || []);
   }
 
@@ -186,6 +186,7 @@ export default function Dashboard({ user, onLogout }) {
       id: `cam-${Date.now()}`,
       ...data,
       status: 'ONLINE',
+      organization_id: user?.organization_id,
       user_id: user?.id
     };
 
