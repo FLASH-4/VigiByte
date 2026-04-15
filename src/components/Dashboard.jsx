@@ -39,6 +39,7 @@ export default function Dashboard({ user, onLogout }) {
   const [pendingOfficers, setPendingOfficers] = useState([])
   const [approvedOfficers, setApprovedOfficers] = useState([])
   const [isApproved, setIsApproved] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
 
   // Effect to prevent background scrolling when the Inspector Modal is active
   useEffect(() => {
@@ -165,30 +166,55 @@ export default function Dashboard({ user, onLogout }) {
       }, 500);
       subscriptions.push(pollInterval);
     } else if (user?.role === 'admin') {
-      // Admin: Listen for new officer registrations
+      // Admin: Listen for new officer registrations - no filter for INSERT
       const channelNewOfficers = scopedSupabase.channel(`new-officers-${user?.organization_id}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
-          table: 'users',
-          filter: `role=eq.officer`
-        }, () => {
-          console.log('New officer registration detected - refreshing list');
-          loadOfficers();
+          table: 'users'
+        }, (payload) => {
+          // Check if new user is an officer in this organization
+          if (payload.new.role === 'officer' && payload.new.organization_id === user?.organization_id) {
+            console.log('New officer registration detected - refreshing list');
+            loadOfficers();
+          }
         })
         .subscribe();
       subscriptions.push(channelNewOfficers);
 
-      // Admin: Listen for officer deletions (rejections)
+      // Admin: Polling fallback to detect new pending officers (every 2 seconds)
+      const pollNewOfficers = setInterval(async () => {
+        try {
+          const { data: officers } = await scopedSupabase.from('users').select('*').eq('role', 'officer').eq('organization_id', user?.organization_id);
+          const { data: approved } = await scopedSupabase.from('approved_officers').select('user_id').eq('organization_id', user?.organization_id);
+          const approvedIds = new Set(approved?.map(a => a.user_id) || []);
+          const pending = (officers || []).filter(o => !approvedIds.has(o.id));
+
+          // Update if pending count changed
+          if (pending.length !== pendingOfficers.length) {
+            console.log('Pending officers count changed - updating list');
+            setPendingOfficers(pending);
+            const approvedList = (officers || []).filter(o => approvedIds.has(o.id));
+            setApprovedOfficers(approvedList);
+          }
+        } catch (err) {
+          console.error('Polling error for new officers:', err);
+        }
+      }, 2000);
+      subscriptions.push(pollNewOfficers);
+
+      // Admin: Listen for officer deletions (rejections) - no filter for DELETE events
       const channelDeleteOfficers = scopedSupabase.channel(`delete-officers-${user?.organization_id}`)
         .on('postgres_changes', {
           event: 'DELETE',
           schema: 'public',
-          table: 'users',
-          filter: `role=eq.officer`
-        }, () => {
-          console.log('Officer deleted (rejected) - refreshing list');
-          loadOfficers();
+          table: 'users'
+        }, (payload) => {
+          // Check if deleted user was an officer
+          if (payload.old.role === 'officer') {
+            console.log('Officer deleted (rejected) - refreshing list');
+            loadOfficers();
+          }
         })
         .subscribe();
       subscriptions.push(channelDeleteOfficers);
@@ -279,8 +305,7 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
-  // Approve an officer
-  async function handleApproveOfficer(officerId, officerEmail) {
+  // Reject/remove an officer
     try {
       const { error } = await scopedSupabase.from('approved_officers').insert([{
         organization_id: user?.organization_id,
@@ -311,6 +336,8 @@ export default function Dashboard({ user, onLogout }) {
           throw deleteError;
         }
         console.log('Officer deleted successfully');
+        // Remove from pending list immediately in UI
+        setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
         alert('✅ Officer request rejected and account deleted');
       } else {
         // If approved, just remove approval
@@ -321,14 +348,55 @@ export default function Dashboard({ user, onLogout }) {
           throw error;
         }
         console.log('Officer revoked successfully');
+        // Remove from approved list immediately in UI
+        setApprovedOfficers(prev => prev.filter(o => o.id !== officerId));
         alert('✅ Officer access revoked');
       }
 
-      // Refresh the officers list immediately
+      // Also refresh from database to ensure consistency
       await loadOfficers();
     } catch (err) {
       console.error('Error removing officer:', err);
       alert('❌ Error: ' + err.message);
+    }
+  }
+
+  // Delete current user account
+  async function handleDeleteAccount() {
+    const confirmDelete = window.confirm('⚠️ Are you sure you want to delete your account? This action cannot be undone.');
+    if (!confirmDelete) return;
+
+    try {
+      // If admin, delete all organization data first
+      if (user?.role === 'admin') {
+        console.log('Admin account deletion - removing all organization data...');
+
+        // Delete all cameras in organization
+        const { error: camerasError } = await scopedSupabase.from('cameras').delete().eq('organization_id', user?.organization_id);
+        if (camerasError) throw camerasError;
+
+        // Delete all criminals in organization
+        const { error: criminalsError } = await scopedSupabase.from('criminals').delete().eq('organization_id', user?.organization_id);
+        if (criminalsError) throw criminalsError;
+
+        // Delete all approved officers records
+        const { error: approvalsError } = await scopedSupabase.from('approved_officers').delete().eq('organization_id', user?.organization_id);
+        if (approvalsError) throw approvalsError;
+
+        console.log('Organization data deleted successfully');
+      }
+
+      // Delete the user account
+      const { error: userError } = await scopedSupabase.from('users').delete().eq('id', user?.id);
+      if (userError) throw userError;
+
+      console.log('User account deleted successfully');
+      alert('✅ Your account has been deleted');
+      onLogout();
+      window.location.href = '/register';
+    } catch (err) {
+      console.error('Error deleting account:', err);
+      alert('❌ Error deleting account: ' + err.message);
     }
   }
 
@@ -424,12 +492,34 @@ export default function Dashboard({ user, onLogout }) {
         </div>
         <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
           {user?.role === 'admin' && <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-5 py-1.5 sm:py-2.5 rounded-lg text-[9px] sm:text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 border border-blue-400/20 whitespace-nowrap"><span className="hidden sm:inline">+ Add Node</span><span className="sm:hidden">+</span></button>}
-          <div className="flex items-center gap-1 sm:gap-2 pl-2 sm:pl-4 border-l border-white/10">
+          <div className="flex items-center gap-1 sm:gap-2 pl-2 sm:pl-4 border-l border-white/10 relative">
             <div className="text-right">
               <p className="text-[8px] sm:text-[9px] font-bold text-white truncate max-w-[70px] sm:max-w-[100px]">{user?.email}</p>
               <p className="text-[7px] sm:text-[8px] text-slate-400 uppercase tracking-widest mt-0.5">{user?.role === 'admin' ? '🔑 ADMIN' : user?.role === 'officer' ? '👮 OFFICER' : '👁️ VIEWER'}</p>
             </div>
-            <div className="w-7 sm:w-10 h-7 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg text-xs flex-shrink-0">{user?.email?.charAt(0).toUpperCase()}</div>
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="w-7 sm:w-10 h-7 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg text-xs flex-shrink-0 hover:opacity-80 transition-opacity cursor-pointer active:scale-95"
+              title="Click for account options"
+            >
+              {user?.email?.charAt(0).toUpperCase()}
+            </button>
+
+            {/* Profile Dropdown Menu */}
+            {showProfileMenu && (
+              <div className="absolute top-12 right-0 bg-[#0c101f] border border-white/10 rounded-lg shadow-lg z-50 min-w-max">
+                <button
+                  onClick={() => {
+                    handleDeleteAccount();
+                    setShowProfileMenu(false);
+                  }}
+                  className="w-full text-left px-4 py-3 text-red-400 hover:bg-red-600/10 text-[12px] font-bold uppercase tracking-widest transition-colors border-t border-white/5 first:border-t-0"
+                >
+                  🗑️ Delete Account
+                </button>
+              </div>
+            )}
+
             <button onClick={onLogout} className="p-1 sm:p-2 bg-red-600/10 hover:bg-red-600/20 text-red-500 hover:text-red-400 rounded transition-all border border-red-500/20 flex-shrink-0" title="Logout">
               <LogOut size={14} className="sm:hidden" />
               <LogOut size={16} className="hidden sm:block" />
