@@ -482,6 +482,7 @@ export default function Dashboard({ user, onLogout }) {
       console.log('User account deleted successfully');
       setShowDeleteModal(false);
       onLogout();
+      window.location.href = '/';
     } catch (err) {
       console.error('Error deleting account:', err);
       alert('❌ Error deleting account: ' + err.message);
