@@ -10,3 +10,13 @@
 /* NOTE: Tailwind's base, components, and utilities are injected here during the build process.
    Custom global overrides or @layer directives can be added below this import.
 */
+
+/* Hide scrollbars while keeping scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
