@@ -40,6 +40,10 @@ export default function Dashboard({ user, onLogout }) {
   const [linkStatus, setLinkStatus] = useState('CONNECTING') // CONNECTING | ENCRYPTED | DISCONNECTED
   const [detectedCriminals, setDetectedCriminals] = useState([]) // Live subjects in the current active feed
 
+  // Officers Management (Admin Only)
+  const [pendingOfficers, setPendingOfficers] = useState([])
+  const [approvedOfficers, setApprovedOfficers] = useState([])
+
   /**
    * SYSTEM HEALTH CHECK
    * Periodically verifies the connection between the frontend, Supabase, and the Python AI Backend.
@@ -74,6 +78,7 @@ export default function Dashboard({ user, onLogout }) {
     loadModels();
     loadCameras();
     loadCriminals();
+    if (user?.role === 'admin') loadOfficers();
   }, [user?.id])
 
   // Fetches suspect records from the cloud database
@@ -86,6 +91,54 @@ export default function Dashboard({ user, onLogout }) {
   async function loadCameras() {
     const { data } = await scopedSupabase.from('cameras').select('*').eq('user_id', user?.id);
     setCameras(data || []);
+  }
+
+  // Load all officers and their approval status
+  async function loadOfficers() {
+    try {
+      // Get all officers in org
+      const { data: officers } = await scopedSupabase.from('users').select('*').eq('role', 'officer').eq('organization_id', user?.organization_id);
+
+      // Get approved officers
+      const { data: approved } = await scopedSupabase.from('approved_officers').select('user_id').eq('organization_id', user?.organization_id);
+      const approvedIds = new Set(approved?.map(a => a.user_id) || []);
+
+      // Separate pending and approved
+      const pending = (officers || []).filter(o => !approvedIds.has(o.id));
+      const approvedList = (officers || []).filter(o => approvedIds.has(o.id));
+
+      setPendingOfficers(pending);
+      setApprovedOfficers(approvedList);
+    } catch (err) {
+      console.error('Error loading officers:', err);
+    }
+  }
+
+  // Approve an officer
+  async function handleApproveOfficer(officerId, officerEmail) {
+    try {
+      const { error } = await scopedSupabase.from('approved_officers').insert([{
+        organization_id: user?.organization_id,
+        user_id: officerId,
+        approved_by: user?.id
+      }]);
+
+      if (error) throw error;
+      await loadOfficers();
+    } catch (err) {
+      console.error('Error approving officer:', err);
+    }
+  }
+
+  // Reject/remove an officer
+  async function handleRemoveOfficer(officerId) {
+    try {
+      const { error } = await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId).eq('organization_id', user?.organization_id);
+      if (error) throw error;
+      await loadOfficers();
+    } catch (err) {
+      console.error('Error removing officer:', err);
+    }
   }
 
   /**
@@ -180,13 +233,14 @@ export default function Dashboard({ user, onLogout }) {
         <div className="flex items-center gap-2 sm:gap-6">
           {user?.role === 'admin' && <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 sm:px-5 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 border border-blue-400/20 whitespace-nowrap"><span className="hidden sm:inline">+ Add New Node</span><span className="sm:hidden">+</span></button>}
           <div className="flex items-center gap-2 sm:gap-4 pl-3 sm:pl-6 border-l border-white/10">
-            <div className="text-right hidden sm:block">
-              <p className="text-[11px] font-bold text-white">{user?.email}</p>
-              <p className="text-[9px] text-slate-400 uppercase tracking-widest mt-0.5">{user?.role === 'admin' ? '🔑 ADMIN' : user?.role === 'officer' ? '👮 OFFICER' : '👁️ VIEWER'}</p>
+            <div className="text-right">
+              <p className="text-[9px] sm:text-[11px] font-bold text-white truncate max-w-[80px] sm:max-w-none">{user?.email}</p>
+              <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase tracking-widest mt-0.5">{user?.role === 'admin' ? '🔑 ADMIN' : user?.role === 'officer' ? '👮 OFFICER' : '👁️ VIEWER'}</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg">{user?.email?.charAt(0).toUpperCase()}</div>
-            <button onClick={onLogout} className="ml-2 p-2.5 bg-red-600/10 hover:bg-red-600/20 text-red-500 hover:text-red-400 rounded-lg transition-all border border-red-500/20 tooltip-trigger" title="Logout">
-              <LogOut size={16} />
+            <div className="w-8 sm:w-10 h-8 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg text-xs sm:text-base flex-shrink-0">{user?.email?.charAt(0).toUpperCase()}</div>
+            <button onClick={onLogout} className="ml-1 sm:ml-2 p-1.5 sm:p-2.5 bg-red-600/10 hover:bg-red-600/20 text-red-500 hover:text-red-400 rounded-lg transition-all border border-red-500/20 tooltip-trigger" title="Logout">
+              <LogOut size={14} className="sm:hidden" />
+              <LogOut size={16} className="hidden sm:block" />
             </button>
           </div>
         </div>
@@ -225,13 +279,77 @@ export default function Dashboard({ user, onLogout }) {
             <ChartContainer title="Neural Match Signal" icon={<Activity size={14}/>}><ResponsiveContainer width="100%" height={180}><AreaChart data={liveStats}><defs><linearGradient id="p" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><Area type="monotone" dataKey="signal" stroke="#3b82f6" strokeWidth={2.5} fill="url(#p)" /><Tooltip contentStyle={{background: '#0a0d14', border: '1px solid #1e293b', borderRadius: '12px', fontSize: '10px'}} /></AreaChart></ResponsiveContainer></ChartContainer>
         </div>
         <div className="lg:col-span-8 bg-slate-900/30 border border-white/5 rounded-3xl overflow-hidden flex flex-col">
-            <div className="flex bg-black/20 p-2 gap-2 border-b border-white/5">
+            <div className="flex bg-black/20 p-2 gap-2 border-b border-white/5 flex-wrap">
               <TabBtn active={activeTab === 'alerts'} label="THREAT HISTORY" onClick={() => setActiveTab('alerts')} icon={<Bell size={14}/>} />
               {user?.role !== 'viewer' && <TabBtn active={activeTab === 'database'} label="DATABASE" onClick={() => setActiveTab('database')} icon={<Database size={14}/>} />}
+              {user?.role === 'admin' && <TabBtn active={activeTab === 'officers'} label="OFFICERS" onClick={() => setActiveTab('officers')} icon={<Shield size={14}/>} />}
             </div>
-            <div className="p-8 h-[530px] overflow-y-auto custom-scrollbar">
+            <div className="p-4 sm:p-8 h-[530px] overflow-y-auto custom-scrollbar">
                 {activeTab === 'alerts' ? (
                   <AlertPanel alerts={globalAlerts} onViewImage={setViewingImageUrl} />
+                ) : activeTab === 'officers' ? (
+                  <div className="space-y-4">
+                    {/* Pending Officers */}
+                    {pendingOfficers.length > 0 && (
+                      <div>
+                        <h3 className="text-xs font-bold text-yellow-400 uppercase tracking-widest mb-3">⏳ Pending Approval ({pendingOfficers.length})</h3>
+                        <div className="space-y-2">
+                          {pendingOfficers.map(officer => (
+                            <div key={officer.id} className="bg-slate-800/50 border border-yellow-400/20 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-xs sm:text-sm font-semibold text-white truncate">{officer.email}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400">👮 Officer • Registered: {new Date(officer.created_at).toLocaleDateString()}</p>
+                              </div>
+                              <div className="flex gap-2 min-w-fit">
+                                <button
+                                  onClick={() => handleApproveOfficer(officer.id, officer.email)}
+                                  className="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs sm:text-sm font-bold uppercase transition-all"
+                                >
+                                  ✓ Approve
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveOfficer(officer.id)}
+                                  className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs sm:text-sm font-bold uppercase transition-all"
+                                >
+                                  ✕ Reject
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Approved Officers */}
+                    {approvedOfficers.length > 0 && (
+                      <div>
+                        <h3 className="text-xs font-bold text-green-400 uppercase tracking-widest mb-3">✓ Approved ({approvedOfficers.length})</h3>
+                        <div className="space-y-2">
+                          {approvedOfficers.map(officer => (
+                            <div key={officer.id} className="bg-slate-800/30 border border-green-400/20 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0">
+                                <p className="text-xs sm:text-sm font-semibold text-white truncate">{officer.email}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400">👮 Officer • Status: Active</p>
+                              </div>
+                              <button
+                                onClick={() => handleRemoveOfficer(officer.id)}
+                                className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs sm:text-sm font-bold uppercase transition-all mt-2 sm:mt-0"
+                              >
+                                Revoke
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {pendingOfficers.length === 0 && approvedOfficers.length === 0 && (
+                      <div className="py-12 text-center opacity-50">
+                        <Shield size={40} className="mx-auto mb-4 text-slate-600" />
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">No officers yet</p>
+                      </div>
+                    )}
+                  </div>
                 ) : user?.role !== 'viewer' ? (
                   <CriminalDB criminals={criminals} onRefresh={loadCriminals} supabase={scopedSupabase} userRole={user?.role} user={user} />
                 ) : (

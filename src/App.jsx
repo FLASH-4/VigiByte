@@ -413,6 +413,7 @@ export default function App() {
           onClearError={() => setAuthError('')}
           needsTOTP={needsTOTP}
           qrCodeURL={qrCodeURL}
+          totpSecret={totpSecret}
           onTOTPSetup={handleTOTPSetup}
           onTOTPVerification={handleTOTPVerification}
           pendingUser={pendingUser}

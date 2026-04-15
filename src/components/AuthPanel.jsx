@@ -4,7 +4,7 @@ import { Lock, AlertCircle, Eye, EyeOff, Shield, LogOut, Copy, Check } from 'luc
 /**
  * AuthPanel Component with 2FA Support
  */
-export default function AuthPanel({ onLogin, onLogout, user, error: externalError, onClearError, needsTOTP, qrCodeURL, onTOTPSetup, onTOTPVerification, pendingUser }) {
+export default function AuthPanel({ onLogin, onLogout, user, error: externalError, onClearError, needsTOTP, qrCodeURL, totpSecret, onTOTPSetup, onTOTPVerification, pendingUser }) {
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -116,6 +116,27 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
                 className="w-48 h-48"
               />
             </div>
+
+            {/* Manual Setup Key for Mobile Users */}
+            {totpSecret && (
+              <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-4">
+                <p className="text-xs text-slate-400 mb-2">📋 Can't scan? Enter this key manually:</p>
+                <div className="flex items-center gap-2 bg-slate-800/50 p-3 rounded-lg">
+                  <code className="text-sm font-mono text-yellow-300 break-all flex-1">{totpSecret}</code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(totpSecret)
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
+                    }}
+                    className="flex-shrink-0 p-2 hover:bg-slate-700 rounded transition-colors"
+                  >
+                    {copied ? <Check size={18} className="text-green-400" /> : <Copy size={18} className="text-blue-400" />}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleTOTPSubmit} className="space-y-4">
               <div>
