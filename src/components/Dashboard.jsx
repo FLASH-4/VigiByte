@@ -192,6 +192,7 @@ export default function Dashboard({ user, onLogout }) {
       }, 1000);
 
       // Polling fallback: Check rejection/deletion every 1 second
+      const pollInterval = setInterval(async () => {
         try {
           const { data: userExists } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
 
@@ -208,7 +209,7 @@ export default function Dashboard({ user, onLogout }) {
         } catch (err) {
           console.error('Poll error:', err);
         }
-      }, 300);
+      }, 1000);
 
       function clearSubscriptions() {
         subscriptions.forEach(sub => {
