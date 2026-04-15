@@ -56,7 +56,7 @@ export default function Dashboard({ user, onLogout }) {
       setGlobalAlerts([]);
       setDetectedCriminals([]);
     }
-  }, [isApproved, selectedCamera])
+  }, [isApproved])
 
   /**
    * SYSTEM HEALTH CHECK
@@ -129,7 +129,7 @@ export default function Dashboard({ user, onLogout }) {
         .subscribe();
       subscriptions.push(channelDelete);
 
-      // Polling fallback: Check approval status every 1 second
+      // Polling fallback: Check approval status every 500ms for faster rejection detection
       const pollInterval = setInterval(async () => {
         try {
           // Check if user still exists (rejection detection)
@@ -161,8 +161,49 @@ export default function Dashboard({ user, onLogout }) {
         } catch (err) {
           console.error('Polling error:', err);
         }
-      }, 1000);
+      }, 500);
       subscriptions.push(pollInterval);
+    } else if (user?.role === 'admin') {
+      // Admin: Listen for new officer registrations
+      const channelNewOfficers = scopedSupabase.channel(`new-officers-${user?.organization_id}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'users',
+          filter: `role=eq.officer`
+        }, () => {
+          console.log('New officer registration detected - refreshing list');
+          loadOfficers();
+        })
+        .subscribe();
+      subscriptions.push(channelNewOfficers);
+
+      // Admin: Listen for officer deletions (rejections)
+      const channelDeleteOfficers = scopedSupabase.channel(`delete-officers-${user?.organization_id}`)
+        .on('postgres_changes', {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'users',
+          filter: `role=eq.officer`
+        }, () => {
+          console.log('Officer deleted (rejected) - refreshing list');
+          loadOfficers();
+        })
+        .subscribe();
+      subscriptions.push(channelDeleteOfficers);
+
+      // Admin: Listen for officer list changes (approvals/revocations)
+      const channelOfficerChanges = scopedSupabase.channel(`officer-changes-${user?.organization_id}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'approved_officers'
+        }, () => {
+          console.log('Officer approval status changed - refreshing list');
+          loadOfficers();
+        })
+        .subscribe();
+      subscriptions.push(channelOfficerChanges);
     }
 
     return () => {
