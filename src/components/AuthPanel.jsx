@@ -218,6 +218,8 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
               onClick={() => {
                 setIsLogin(!isLogin)
                 setError('')
+                setPassword('')
+                setConfirmPassword('')
                 setSelectedRole('officer')
               }}
               className="text-blue-400 hover:text-blue-300 font-bold"

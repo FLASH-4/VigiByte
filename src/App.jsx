@@ -69,9 +69,7 @@ export default function App() {
   useEffect(() => {
     const checkAuth = async () => {
 
-      // MOBILE STORAGE TEST: Verify localStorage is functional before proceeding.
-      // iOS Safari in private/incognito mode has a 0-byte quota and throws on setItem.
-      // This catches that early and shows a clear error instead of silently failing.
+      // MOBILE STORAGE TEST
       try {
         localStorage.setItem('vigibyte_test', '1')
         const test = localStorage.getItem('vigibyte_test')
@@ -83,7 +81,7 @@ export default function App() {
         return
       }
 
-      // Load users from Supabase
+      // Load users from Supabase FIRST
       await loadUsers()
 
       const token = storage.get('vigibyte_token')
@@ -162,7 +160,7 @@ export default function App() {
           passwordHash: hashedPassword,
           role,
           id: 'user_' + Date.now(),
-          createdAt: new Date().toISOString()
+          created_at: new Date().toISOString()
         }
 
         // Persist to Supabase
