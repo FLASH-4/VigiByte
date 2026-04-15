@@ -164,8 +164,34 @@ export default function Dashboard({ user, onLogout }) {
         .subscribe();
       subscriptions.push(channelDelete);
 
-      // Polling fallback: Check approval status every 300ms for faster rejection detection
-      const pollInterval = setInterval(async () => {
+      // Polling fallback: Check approval status every 1 second
+      let lastApprovalState = isApproved;
+      const pollApprovalInterval = setInterval(async () => {
+        try {
+          const { data: approved } = await scopedSupabase
+            .from('approved_officers')
+            .select('id')
+            .eq('user_id', user?.id)
+            .eq('organization_id', user?.organization_id);
+
+          const isNowApproved = approved && approved.length > 0;
+
+          // If approval status changed from not approved to approved
+          if (!lastApprovalState && isNowApproved) {
+            console.log('✅ APPROVAL DETECTED via polling - Refreshing page...');
+            clearInterval(pollApprovalInterval);
+            clearInterval(pollInterval);
+            window.location.reload();
+            return;
+          }
+
+          lastApprovalState = isNowApproved;
+        } catch (err) {
+          console.error('Approval poll error:', err);
+        }
+      }, 1000);
+
+      // Polling fallback: Check rejection/deletion every 1 second
         try {
           const { data: userExists } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
 
@@ -191,6 +217,7 @@ export default function Dashboard({ user, onLogout }) {
         });
       }
 
+      subscriptions.push(pollApprovalInterval);
       subscriptions.push(pollInterval);
     } else if (user?.role === 'admin') {
       // Admin: Listen for new officer registrations - no filter for INSERT
