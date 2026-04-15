@@ -157,7 +157,7 @@ export default function App() {
 
         const newUser = {
           email,
-          passwordHash: hashedPassword,
+          password_hash: hashedPassword,
           role,
           id: 'user_' + Date.now(),
           created_at: new Date().toISOString()
