@@ -410,6 +410,7 @@ export default function App() {
         <AuthPanel
           onLogin={handleLogin}
           error={authError}
+          onClearError={() => setAuthError('')}
           needsTOTP={needsTOTP}
           qrCodeURL={qrCodeURL}
           onTOTPSetup={handleTOTPSetup}

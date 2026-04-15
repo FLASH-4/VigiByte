@@ -4,7 +4,7 @@ import { Lock, AlertCircle, Eye, EyeOff, Shield, LogOut, Copy, Check } from 'luc
 /**
  * AuthPanel Component with 2FA Support
  */
-export default function AuthPanel({ onLogin, onLogout, user, error: externalError, needsTOTP, qrCodeURL, onTOTPSetup, onTOTPVerification, pendingUser }) {
+export default function AuthPanel({ onLogin, onLogout, user, error: externalError, onClearError, needsTOTP, qrCodeURL, onTOTPSetup, onTOTPVerification, pendingUser }) {
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -357,7 +357,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
                 setError('')
                 setPassword('')
                 setConfirmPassword('')
-                setSelectedRole('officer')
+                onClearError?.()
               }}
               className="text-blue-400 hover:text-blue-300 font-bold"
               disabled={loading}
