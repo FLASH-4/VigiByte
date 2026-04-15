@@ -83,12 +83,40 @@ export default function Dashboard({ user, onLogout }) {
 
   // Fetches suspect records from the cloud database
   async function loadCriminals() {
+    // Admin can see all criminals in organization
+    if (user?.role === 'admin') {
+      const { data } = await scopedSupabase.from('criminals').select('*').eq('organization_id', user?.organization_id);
+      setCriminals(data || [])
+      return;
+    }
+
+    // Officers/viewers only see if approved
+    const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', user?.id).eq('organization_id', user?.organization_id);
+    if (!approved || approved.length === 0) {
+      setCriminals([]);
+      return;
+    }
+
     const { data } = await scopedSupabase.from('criminals').select('*').eq('organization_id', user?.organization_id);
     setCriminals(data || [])
   }
 
   // Fetches camera nodes from the cloud database scoped to current organization
   async function loadCameras() {
+    // Admin can see all cameras in organization
+    if (user?.role === 'admin') {
+      const { data } = await scopedSupabase.from('cameras').select('*').eq('organization_id', user?.organization_id);
+      setCameras(data || []);
+      return;
+    }
+
+    // Officers/viewers only see if approved
+    const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', user?.id).eq('organization_id', user?.organization_id);
+    if (!approved || approved.length === 0) {
+      setCameras([]);
+      return;
+    }
+
     const { data } = await scopedSupabase.from('cameras').select('*').eq('organization_id', user?.organization_id);
     setCameras(data || []);
   }
