@@ -263,7 +263,7 @@ export default function Dashboard({ user, onLogout }) {
       // If pending, delete their user account entirely
       if (isPending) {
         console.log('Rejecting pending officer:', officerId);
-        const { error: deleteError } = await supabase.from('users').delete().eq('id', officerId);
+        const { error: deleteError } = await scopedSupabase.from('users').delete().eq('id', officerId);
         if (deleteError) {
           console.error('Delete error:', deleteError);
           throw deleteError;
