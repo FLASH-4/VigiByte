@@ -164,7 +164,7 @@ export default function Dashboard({ user, onLogout }) {
         .subscribe();
       subscriptions.push(channelDelete);
 
-      // Polling fallback: Check approval status every 1 second
+      // Polling fallback: Check approval status every 2 seconds
       let lastApprovalState = isApproved;
       const pollApprovalInterval = setInterval(async () => {
         try {
@@ -178,18 +178,17 @@ export default function Dashboard({ user, onLogout }) {
 
           // If approval status changed from not approved to approved
           if (!lastApprovalState && isNowApproved) {
-            console.log('✅ APPROVAL DETECTED via polling - Refreshing page...');
-            clearInterval(pollApprovalInterval);
-            clearInterval(pollInterval);
-            window.location.reload();
-            return;
+            console.log('✅ APPROVAL DETECTED via polling - Loading data...');
+            setIsApproved(true);
+            await loadCameras();
+            await loadCriminals();
           }
 
           lastApprovalState = isNowApproved;
         } catch (err) {
           console.error('Approval poll error:', err);
         }
-      }, 1000);
+      }, 2000);
 
       // Polling fallback: Check rejection/deletion every 1 second
       const pollInterval = setInterval(async () => {
