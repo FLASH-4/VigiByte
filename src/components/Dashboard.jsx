@@ -352,12 +352,13 @@ export default function Dashboard({ user, onLogout }) {
       // If pending, delete their user account entirely
       if (isPending) {
         console.log('Rejecting pending officer:', officerId);
-        const { error: deleteError } = await scopedSupabase.from('users').delete().eq('id', officerId);
+        // Use regular supabase (admin) instead of scoped for deletion
+        const { error: deleteError } = await supabase.from('users').delete().eq('id', officerId);
         if (deleteError) {
           console.error('Delete error:', deleteError);
           throw deleteError;
         }
-        console.log('Officer deleted successfully');
+        console.log('Officer deleted successfully from database');
         // Remove from pending list immediately in UI
         setPendingOfficers(prev => prev.filter(o => o.id !== officerId));
       } else {
@@ -373,8 +374,10 @@ export default function Dashboard({ user, onLogout }) {
         setApprovedOfficers(prev => prev.filter(o => o.id !== officerId));
       }
 
-      // Also refresh from database to ensure consistency
-      await loadOfficers();
+      // Force reload officers from database
+      setTimeout(async () => {
+        await loadOfficers();
+      }, 100);
     } catch (err) {
       console.error('Error removing officer:', err);
     }
@@ -748,7 +751,7 @@ function DetectedCriminalsPanel({ criminals, onViewImage }) {
         </span>
       </div>
 
-      <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-2 custom-scrollbar">
+      <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-2 scrollbar-hide">
         {criminals.map((criminal, idx) => (
           <CriminalCardCompact 
             key={criminal.id} 
