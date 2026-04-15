@@ -25,9 +25,28 @@ export default function Dashboard({ user, onLogout }) {
   const [selectedCamera, setSelectedCamera] = useState(null) // Currently focused camera in 'Inspector' mode
 
   // Effect to prevent background scrolling when the Inspector Modal is active
-  useEffect(() => { 
+  useEffect(() => {
     document.body.style.overflow = selectedCamera ? 'hidden' : '';
   }, [selectedCamera])
+
+  // Cleanup camera when revoked
+  useEffect(() => {
+    if (user?.role !== 'admin' && !isApproved) {
+      console.log('Revoking access - stopping camera stream');
+      if (selectedCamera) {
+        try {
+          releaseStream(selectedCamera.id);
+        } catch (err) {
+          console.error('Error releasing stream on revoke:', err);
+        }
+      }
+      setSelectedCamera(null);
+      setCameras([]);
+      setCriminals([]);
+      setGlobalAlerts([]);
+      setDetectedCriminals([]);
+    }
+  }, [isApproved])
   
   const [showAddModal, setShowAddModal] = useState(false) // UI state for adding new cameras
   const [liveStats, setLiveStats] = useState([])         // Data for Recharts analytics
@@ -141,22 +160,9 @@ export default function Dashboard({ user, onLogout }) {
             loadCameras();
             loadCriminals();
           } else if (!nowApproved && isApproved) {
-            // Just got revoked - stop camera and clear everything
-            console.log('User revoked - stopping camera and clearing data');
+            // Just got revoked - this will trigger the useEffect cleanup
+            console.log('User revoked - setting isApproved to false');
             setIsApproved(false);
-            setSelectedCamera(null); // Close camera feed modal
-            setCameras([]); // Clear cameras
-            setCriminals([]); // Clear criminals
-            setGlobalAlerts([]); // Clear alerts
-            setDetectedCriminals([]); // Clear detected criminals
-            // Stop any active streams
-            if (selectedCamera) {
-              try {
-                releaseStream(selectedCamera.id);
-              } catch (err) {
-                console.error('Error releasing stream:', err);
-              }
-            }
           }
         } catch (err) {
           console.error('Polling error:', err);
