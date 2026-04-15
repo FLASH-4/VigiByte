@@ -305,7 +305,8 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
-  // Reject/remove an officer
+  // Approve an officer
+  async function handleApproveOfficer(officerId, officerEmail) {
     try {
       const { error } = await scopedSupabase.from('approved_officers').insert([{
         organization_id: user?.organization_id,
