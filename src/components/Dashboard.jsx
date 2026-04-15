@@ -134,12 +134,18 @@ export default function Dashboard({ user, onLogout }) {
             console.log('✅ APPROVAL DETECTED - Refreshing...');
             window.location.reload();
           } else if (payload.eventType === 'DELETE') {
-            // Officer revoked - set flag to show register form
-            console.log('🔴 REVOCATION DETECTED - Redirecting to register');
+            // Officer revoked - clear data and redirect
+            console.log('🔴 REVOCATION DETECTED - Clearing data...');
+            setIsApproved(false);
+            setCameras([]);
+            setCriminals([]);
+            setGlobalAlerts([]);
             releaseAllStreams();
-            localStorage.setItem('vigibyte_show_register', 'true');
-            onLogout();
-            window.location.href = '/';
+            setTimeout(() => {
+              localStorage.setItem('vigibyte_show_register', 'true');
+              onLogout();
+              window.location.href = '/';
+            }, 500);
           }
         })
         .subscribe();
@@ -154,11 +160,14 @@ export default function Dashboard({ user, onLogout }) {
         }, (payload) => {
           // Check if it's the current user being deleted
           if (payload.old.id === user?.id) {
-            console.log('🔴 DELETE DETECTED - User deleted by admin, redirecting to register');
+            console.log('🔴 DELETE DETECTED - User rejected by admin');
             releaseAllStreams();
             localStorage.setItem('vigibyte_show_register', 'true');
-            onLogout();
-            window.location.href = '/';
+            // Delay redirect to allow modal to display
+            setTimeout(() => {
+              onLogout();
+              window.location.href = '/';
+            }, 1000);
           }
         })
         .subscribe();
@@ -196,13 +205,16 @@ export default function Dashboard({ user, onLogout }) {
           const { data: userExists } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
 
           if (!userExists || userExists.length === 0) {
-            console.log('⚠️ REJECTION DETECTED - Redirecting to register');
+            console.log('⚠️ REJECTION DETECTED via polling');
             clearInterval(pollInterval);
             clearSubscriptions();
             releaseAllStreams();
             localStorage.setItem('vigibyte_show_register', 'true');
-            onLogout();
-            window.location.href = '/';
+            // Delay redirect to allow modal to display
+            setTimeout(() => {
+              onLogout();
+              window.location.href = '/';
+            }, 1000);
             return;
           }
         } catch (err) {
