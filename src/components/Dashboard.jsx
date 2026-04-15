@@ -233,9 +233,9 @@ export default function Dashboard({ user, onLogout }) {
         <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
           {user?.role === 'admin' && <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-5 py-1.5 sm:py-2.5 rounded-lg text-[9px] sm:text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 border border-blue-400/20 whitespace-nowrap"><span className="hidden sm:inline">+ Add Node</span><span className="sm:hidden">+</span></button>}
           <div className="flex items-center gap-1 sm:gap-2 pl-2 sm:pl-4 border-l border-white/10">
-            <div className="text-right hidden sm:block">
-              <p className="text-[9px] sm:text-[11px] font-bold text-white truncate max-w-[100px]">{user?.email}</p>
-              <p className="text-[8px] text-slate-400 uppercase tracking-widest mt-0.5">{user?.role === 'admin' ? '🔑 ADMIN' : user?.role === 'officer' ? '👮 OFFICER' : '👁️ VIEWER'}</p>
+            <div className="text-right">
+              <p className="text-[8px] sm:text-[9px] font-bold text-white truncate max-w-[70px] sm:max-w-[100px]">{user?.email}</p>
+              <p className="text-[7px] sm:text-[8px] text-slate-400 uppercase tracking-widest mt-0.5">{user?.role === 'admin' ? '🔑 ADMIN' : user?.role === 'officer' ? '👮 OFFICER' : '👁️ VIEWER'}</p>
             </div>
             <div className="w-7 sm:w-10 h-7 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg text-xs flex-shrink-0">{user?.email?.charAt(0).toUpperCase()}</div>
             <button onClick={onLogout} className="p-1 sm:p-2 bg-red-600/10 hover:bg-red-600/20 text-red-500 hover:text-red-400 rounded transition-all border border-red-500/20 flex-shrink-0" title="Logout">
