@@ -315,22 +315,34 @@ export default function Dashboard({ user, onLogout }) {
 
   // Fetches suspect records from the cloud database
   async function loadCriminals() {
-    // Admin can see all criminals in organization
-    if (user?.role === 'admin') {
-      const { data } = await scopedSupabase.from('criminals').select('*').eq('organization_id', user?.organization_id);
-      setCriminals(data || [])
-      return;
-    }
+    try {
+      // Fetch global criminals (available to all)
+      const { data: globalCriminals } = await scopedSupabase.from('global_criminals').select('*').eq('is_active', true);
 
-    // Officers/viewers only see if approved
-    const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', user?.id).eq('organization_id', user?.organization_id);
-    if (!approved || approved.length === 0) {
+      // Fetch org-specific criminals
+      let orgCriminals = [];
+      if (user?.role === 'admin') {
+        // Admin sees all org criminals
+        const { data } = await scopedSupabase.from('criminals').select('*').eq('organization_id', user?.organization_id);
+        orgCriminals = data || [];
+      } else {
+        // Officers/viewers only see if approved
+        const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', user?.id).eq('organization_id', user?.organization_id);
+        if (approved && approved.length > 0) {
+          const { data } = await scopedSupabase.from('criminals').select('*').eq('organization_id', user?.organization_id);
+          orgCriminals = data || [];
+        }
+      }
+
+      // Combine with source flag
+      const globalWithType = (globalCriminals || []).map(c => ({ ...c, source: 'global', is_global: true }));
+      const orgWithType = (orgCriminals || []).map(c => ({ ...c, source: 'organization', is_global: false }));
+
+      setCriminals([...globalWithType, ...orgWithType]);
+    } catch (err) {
+      console.error('Error loading criminals:', err);
       setCriminals([]);
-      return;
     }
-
-    const { data } = await scopedSupabase.from('criminals').select('*').eq('organization_id', user?.organization_id);
-    setCriminals(data || [])
   }
 
   // Fetches camera nodes from the cloud database scoped to current organization
@@ -456,19 +468,19 @@ export default function Dashboard({ user, onLogout }) {
   // Delete current user account
   async function handleDeleteAccount() {
     try {
-      // If admin, delete all organization data first
+      // If admin, delete ONLY organization-specific data (NOT global criminals)
       if (user?.role === 'admin') {
-        console.log('Admin account deletion - removing all organization data...');
+        console.log('Admin account deletion - removing organization data...');
 
-        // Delete all cameras in organization
+        // Delete organization cameras
         const { error: camerasError } = await supabaseAdmin.from('cameras').delete().eq('organization_id', user?.organization_id);
         if (camerasError) throw camerasError;
 
-        // Delete all criminals in organization
+        // Delete ONLY organization-specific criminals (NOT global ones)
         const { error: criminalsError } = await supabaseAdmin.from('criminals').delete().eq('organization_id', user?.organization_id);
         if (criminalsError) throw criminalsError;
 
-        // Delete all approved officers records
+        // Delete approved officers records
         const { error: approvalsError } = await supabaseAdmin.from('approved_officers').delete().eq('organization_id', user?.organization_id);
         if (approvalsError) throw approvalsError;
 
@@ -476,7 +488,7 @@ export default function Dashboard({ user, onLogout }) {
         const { error: orgError } = await supabaseAdmin.from('organizations').delete().eq('id', user?.organization_id);
         if (orgError) throw orgError;
 
-        console.log('Organization data deleted successfully');
+        console.log('Organization data deleted successfully (global criminals preserved)');
       }
 
       // Delete the user account
@@ -800,11 +812,23 @@ export default function Dashboard({ user, onLogout }) {
               </p>
 
               {user?.role === 'admin' && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-                  <p className="text-sm text-red-200 font-semibold mb-2">⚠️ Admin Account</p>
-                  <p className="text-xs text-red-300">
-                    Deleting your admin account will also remove all organization data including cameras, criminals database, and officer records.
-                  </p>
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 space-y-3">
+                  <div>
+                    <p className="text-sm text-red-200 font-semibold mb-2">⚠️ Admin Account</p>
+                    <p className="text-xs text-red-300">
+                      Deleting your admin account will remove:
+                    </p>
+                    <ul className="text-xs text-red-300 mt-2 ml-3 space-y-1">
+                      <li>✕ Organization cameras</li>
+                      <li>✕ Local criminal records</li>
+                      <li>✕ Officer approvals</li>
+                    </ul>
+                  </div>
+                  <div className="border-t border-red-500/20 pt-3">
+                    <p className="text-xs text-green-300">
+                      ✓ Global criminal database remains for all users
+                    </p>
+                  </div>
                 </div>
               )}
 
