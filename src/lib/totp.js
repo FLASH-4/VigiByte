@@ -45,7 +45,7 @@ export async function verifyTOTP(secret, token, window = 1) {
 
     // Check current time and ±window timeslots
     for (let i = -window; i <= window; i++) {
-      const time = Math.floor((now + i * 30) / 30)
+      let time = Math.floor((now + i * 30) / 30)
       const timeBytes = new Uint8Array(8)
 
       // Convert time to big-endian bytes
