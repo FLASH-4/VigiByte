@@ -222,23 +222,23 @@ export default function Dashboard({ user, onLogout }) {
     <div className="min-h-screen bg-[#080a10] text-slate-300 font-sans p-3 sm:p-6 tracking-tight overflow-x-hidden">
       
       {/* HEADER: Branding and User Session Info */}
-      <header className="flex flex-wrap items-center justify-between mb-6 sm:mb-8 border-b border-white/5 pb-4 sm:pb-6 gap-3">
-        <div className="flex items-center gap-4">
-          <Shield className="text-blue-500" size={26} />
-          <div>
-            <h1 className="text-lg font-bold text-white uppercase tracking-tight leading-none">VigiByte</h1>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1.5">Network Command Center v6.0</p>
+      <header className="flex flex-wrap items-center justify-between mb-6 sm:mb-8 border-b border-white/5 pb-4 sm:pb-6 gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <Shield className="text-blue-500 flex-shrink-0 w-5 sm:w-[26]" size={24} />
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-lg font-bold text-white uppercase tracking-tight leading-none truncate">VigiByte</h1>
+            <p className="text-[8px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">v6.0</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 sm:gap-6">
-          {user?.role === 'admin' && <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 sm:px-5 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 border border-blue-400/20 whitespace-nowrap"><span className="hidden sm:inline">+ Add New Node</span><span className="sm:hidden">+</span></button>}
-          <div className="flex items-center gap-2 sm:gap-4 pl-3 sm:pl-6 border-l border-white/10">
-            <div className="text-right">
-              <p className="text-[9px] sm:text-[11px] font-bold text-white truncate max-w-[80px] sm:max-w-none">{user?.email}</p>
-              <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase tracking-widest mt-0.5">{user?.role === 'admin' ? '🔑 ADMIN' : user?.role === 'officer' ? '👮 OFFICER' : '👁️ VIEWER'}</p>
+        <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
+          {user?.role === 'admin' && <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-2 sm:px-5 py-1.5 sm:py-2.5 rounded-lg text-[9px] sm:text-[11px] font-bold uppercase transition-all shadow-lg active:scale-95 border border-blue-400/20 whitespace-nowrap"><span className="hidden sm:inline">+ Add Node</span><span className="sm:hidden">+</span></button>}
+          <div className="flex items-center gap-1 sm:gap-2 pl-2 sm:pl-4 border-l border-white/10">
+            <div className="text-right hidden sm:block">
+              <p className="text-[9px] sm:text-[11px] font-bold text-white truncate max-w-[100px]">{user?.email}</p>
+              <p className="text-[8px] text-slate-400 uppercase tracking-widest mt-0.5">{user?.role === 'admin' ? '🔑 ADMIN' : user?.role === 'officer' ? '👮 OFFICER' : '👁️ VIEWER'}</p>
             </div>
-            <div className="w-8 sm:w-10 h-8 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg text-xs sm:text-base flex-shrink-0">{user?.email?.charAt(0).toUpperCase()}</div>
-            <button onClick={onLogout} className="ml-1 sm:ml-2 p-1.5 sm:p-2.5 bg-red-600/10 hover:bg-red-600/20 text-red-500 hover:text-red-400 rounded-lg transition-all border border-red-500/20 tooltip-trigger" title="Logout">
+            <div className="w-7 sm:w-10 h-7 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg text-xs flex-shrink-0">{user?.email?.charAt(0).toUpperCase()}</div>
+            <button onClick={onLogout} className="p-1 sm:p-2 bg-red-600/10 hover:bg-red-600/20 text-red-500 hover:text-red-400 rounded transition-all border border-red-500/20 flex-shrink-0" title="Logout">
               <LogOut size={14} className="sm:hidden" />
               <LogOut size={16} className="hidden sm:block" />
             </button>
@@ -300,16 +300,18 @@ export default function Dashboard({ user, onLogout }) {
                                 <p className="text-xs sm:text-sm font-semibold text-white truncate">{officer.email}</p>
                                 <p className="text-[10px] sm:text-xs text-slate-400">👮 Officer • Registered: {new Date(officer.created_at).toLocaleDateString()}</p>
                               </div>
-                              <div className="flex gap-2 min-w-fit">
+                              <div className="flex gap-2 min-w-fit w-full sm:w-auto">
                                 <button
+                                  type="button"
                                   onClick={() => handleApproveOfficer(officer.id, officer.email)}
-                                  className="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs sm:text-sm font-bold uppercase transition-all"
+                                  className="flex-1 sm:flex-none bg-green-600 hover:bg-green-500 text-white px-3 py-2 sm:py-1.5 rounded text-xs sm:text-sm font-bold uppercase transition-all active:scale-95 cursor-pointer pointer-events-auto"
                                 >
                                   ✓ Approve
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={() => handleRemoveOfficer(officer.id)}
-                                  className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs sm:text-sm font-bold uppercase transition-all"
+                                  className="flex-1 sm:flex-none bg-red-600 hover:bg-red-500 text-white px-3 py-2 sm:py-1.5 rounded text-xs sm:text-sm font-bold uppercase transition-all active:scale-95 cursor-pointer pointer-events-auto"
                                 >
                                   ✕ Reject
                                 </button>
@@ -332,8 +334,9 @@ export default function Dashboard({ user, onLogout }) {
                                 <p className="text-[10px] sm:text-xs text-slate-400">👮 Officer • Status: Active</p>
                               </div>
                               <button
+                                type="button"
                                 onClick={() => handleRemoveOfficer(officer.id)}
-                                className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs sm:text-sm font-bold uppercase transition-all mt-2 sm:mt-0"
+                                className="w-full sm:w-auto bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 sm:py-1.5 rounded text-xs sm:text-sm font-bold uppercase transition-all active:scale-95 cursor-pointer pointer-events-auto"
                               >
                                 Revoke
                               </button>
