@@ -852,7 +852,8 @@ export default function Dashboard({ user, onLogout }) {
                   </div>
                 </>
               )}
-            </div>
+
+              <div className="flex gap-3 pt-4">
                 <button
                   onClick={handleDeleteAccount}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold uppercase text-sm transition-all"
@@ -866,6 +867,7 @@ export default function Dashboard({ user, onLogout }) {
                   Cancel
                 </button>
               </div>
+            </div>
             </div>
           </div>
         </div>
