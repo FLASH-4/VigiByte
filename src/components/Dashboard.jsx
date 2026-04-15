@@ -135,8 +135,11 @@ export default function Dashboard({ user, onLogout }) {
             loadCameras();
             loadCriminals();
           } else if (payload.eventType === 'DELETE') {
-            // Officer revoked
-            setIsApproved(false);
+            // Officer revoked - redirect to register
+            console.log('🔴 REVOCATION DETECTED - Redirecting to register');
+            releaseAllStreams();
+            onLogout();
+            window.location.href = '/register';
           }
         })
         .subscribe();
@@ -151,9 +154,10 @@ export default function Dashboard({ user, onLogout }) {
         }, (payload) => {
           // Check if it's the current user being deleted
           if (payload.old.id === user?.id) {
-            console.log('🔴 DELETE DETECTED - User deleted by admin');
+            console.log('🔴 DELETE DETECTED - User deleted by admin, redirecting to register');
             releaseAllStreams();
             onLogout();
+            window.location.href = '/register';
           }
         })
         .subscribe();
@@ -165,11 +169,12 @@ export default function Dashboard({ user, onLogout }) {
           const { data: userExists } = await scopedSupabase.from('users').select('id').eq('id', user?.id);
 
           if (!userExists || userExists.length === 0) {
-            console.log('⚠️ REJECTION DETECTED');
+            console.log('⚠️ REJECTION DETECTED - Redirecting to register');
             clearInterval(pollInterval);
             clearSubscriptions();
             releaseAllStreams();
             onLogout();
+            window.location.href = '/register';
             return;
           }
         } catch (err) {

@@ -289,7 +289,7 @@ export default function AuthPanel({ onLogin, onLogout, user, error: externalErro
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="officer@company.com"
+              placeholder="your@email.com"
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
               disabled={loading}
             />
