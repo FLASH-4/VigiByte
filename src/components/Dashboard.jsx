@@ -468,9 +468,13 @@ export default function Dashboard({ user, onLogout }) {
   // Delete current user account
   async function handleDeleteAccount() {
     try {
-      // If admin, delete ONLY organization-specific data (NOT global criminals)
+      // If admin, delete ALL organization data and all users in org
       if (user?.role === 'admin') {
-        console.log('Admin account deletion - removing organization data...');
+        console.log('Admin account deletion - removing all organization data and users...');
+
+        // Delete ALL users in this organization (officers, viewers, other admins)
+        const { error: usersError } = await supabaseAdmin.from('users').delete().eq('organization_id', user?.organization_id);
+        if (usersError) throw usersError;
 
         // Delete organization cameras
         const { error: camerasError } = await supabaseAdmin.from('cameras').delete().eq('organization_id', user?.organization_id);
@@ -488,7 +492,10 @@ export default function Dashboard({ user, onLogout }) {
         const { error: orgError } = await supabaseAdmin.from('organizations').delete().eq('id', user?.organization_id);
         if (orgError) throw orgError;
 
-        console.log('Organization data deleted successfully (global criminals preserved)');
+        console.log('Organization and all users deleted successfully (global criminals preserved)');
+      } else {
+        // Officer/Viewer: Only delete their own user record (no org data affected)
+        console.log('Officer/Viewer account deletion - only removing user record...');
       }
 
       // Delete the user account
@@ -807,32 +814,45 @@ export default function Dashboard({ user, onLogout }) {
             </div>
 
             <div className="space-y-6">
-              <p className="text-slate-300">
-                This action will permanently delete your account and all associated data. This cannot be undone.
-              </p>
+              {user?.role === 'admin' ? (
+                <>
+                  <p className="text-slate-300">
+                    This will delete your account and <span className="text-red-400 font-bold">ENTIRE ORGANIZATION</span> including all officers and viewers.
+                  </p>
 
-              {user?.role === 'admin' && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 space-y-3">
-                  <div>
-                    <p className="text-sm text-red-200 font-semibold mb-2">⚠️ Admin Account</p>
-                    <p className="text-xs text-red-300">
-                      Deleting your admin account will remove:
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 space-y-3">
+                    <p className="text-sm text-red-200 font-semibold">⚠️ CRITICAL: Admin Account Deletion</p>
+                    <p className="text-xs text-red-300 mb-3">
+                      Will be permanently removed:
                     </p>
-                    <ul className="text-xs text-red-300 mt-2 ml-3 space-y-1">
-                      <li>✕ Organization cameras</li>
-                      <li>✕ Local criminal records</li>
+                    <ul className="text-xs text-red-300 ml-3 space-y-1.5">
+                      <li>✕ All officers in this organization</li>
+                      <li>✕ All viewers in this organization</li>
+                      <li>✕ All organization cameras</li>
+                      <li>✕ All organization-specific criminal records</li>
                       <li>✕ Officer approvals</li>
+                      <li>✕ Organization profile</li>
                     </ul>
+                    <div className="border-t border-red-500/20 mt-3 pt-3">
+                      <p className="text-xs text-green-300">
+                        ✓ Global criminal database remains untouched
+                      </p>
+                    </div>
                   </div>
-                  <div className="border-t border-red-500/20 pt-3">
-                    <p className="text-xs text-green-300">
-                      ✓ Global criminal database remains for all users
+                </>
+              ) : (
+                <>
+                  <p className="text-slate-300">
+                    This will only delete your account. All organization data remains intact.
+                  </p>
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+                    <p className="text-xs text-blue-300">
+                      ✓ Criminal records, cameras, and org data will not be affected
                     </p>
                   </div>
-                </div>
+                </>
               )}
-
-              <div className="flex gap-3 pt-4">
+            </div>
                 <button
                   onClick={handleDeleteAccount}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold uppercase text-sm transition-all"
