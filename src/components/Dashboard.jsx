@@ -79,6 +79,43 @@ export default function Dashboard({ user, onLogout }) {
     loadCameras();
     loadCriminals();
     if (user?.role === 'admin') loadOfficers();
+
+    const subscriptions = [];
+
+    // Real-time subscription: Auto-update when approved or revoked
+    if (user?.role !== 'admin') {
+      const channel = scopedSupabase.channel(`approved-${user?.id}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'approved_officers',
+          filter: `user_id=eq.${user?.id}`
+        }, () => {
+          loadCameras();
+          loadCriminals();
+        })
+        .subscribe();
+      subscriptions.push(channel);
+
+      // Listen for account deletion (rejection)
+      const channelDelete = scopedSupabase.channel(`user-delete-${user?.id}`)
+        .on('postgres_changes', {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${user?.id}`
+        }, () => {
+          // Account was deleted/rejected - redirect to register
+          onLogout();
+          window.location.href = '/register';
+        })
+        .subscribe();
+      subscriptions.push(channelDelete);
+    }
+
+    return () => {
+      subscriptions.forEach(sub => scopedSupabase.removeChannel(sub));
+    };
   }, [user?.id])
 
   // Fetches suspect records from the cloud database
@@ -161,8 +198,20 @@ export default function Dashboard({ user, onLogout }) {
   // Reject/remove an officer
   async function handleRemoveOfficer(officerId) {
     try {
-      const { error } = await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId).eq('organization_id', user?.organization_id);
-      if (error) throw error;
+      // Check if officer is pending (not approved)
+      const { data: approved } = await scopedSupabase.from('approved_officers').select('*').eq('user_id', officerId).eq('organization_id', user?.organization_id);
+      const isPending = !approved || approved.length === 0;
+
+      // If pending, delete their user account entirely
+      if (isPending) {
+        const { error: deleteError } = await scopedSupabase.from('users').delete().eq('id', officerId);
+        if (deleteError) throw deleteError;
+      } else {
+        // If approved, just remove approval
+        const { error } = await scopedSupabase.from('approved_officers').delete().eq('user_id', officerId).eq('organization_id', user?.organization_id);
+        if (error) throw error;
+      }
+
       await loadOfficers();
     } catch (err) {
       console.error('Error removing officer:', err);
